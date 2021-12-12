@@ -44,7 +44,7 @@ var globalFlags = []cli.Flag{
 		Usage: "the allow files",
 		Value: func() *cli.StringSlice {
 			s := cli.StringSlice([]string{
-				"81e0433ae00602c0e4d00424d213b0ab"})
+				"419a8512895971b7b4f4f33e620d361254e5c9552b904b0474b09ddd4a6a220b"})
 			return &s
 		}(),
 	},

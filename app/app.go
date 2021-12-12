@@ -6,7 +6,7 @@ import (
 
 	"archive/zip"
 	"bytes"
-	"crypto/md5"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -171,7 +171,7 @@ func (b *fuzzer) RecursiveFind(w []string, h string, r *zip.Reader) error {
 
 			buff := bytes.NewBuffer([]byte{})
 
-			h := md5.New()
+			h := sha256.New()
 
 			size, err := io.Copy(buff, io.TeeReader(rc, h))
 			if err != nil {
@@ -220,7 +220,7 @@ func (b *fuzzer) Run() error {
 
 			buff := bytes.NewBuffer([]byte{})
 
-			h := md5.New()
+			h := sha256.New()
 
 			size, err := io.Copy(buff, io.TeeReader(r, h))
 			if err != nil {
