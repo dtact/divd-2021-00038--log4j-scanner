@@ -95,10 +95,13 @@ func New(options ...OptionFn) (*fuzzer, error) {
 	}
 
 	go func() {
+		defer close(words)
+
 		for _, target := range b.targetHosts {
 			err := filepath.Walk(target, func(path string, info fs.FileInfo, err error) error {
 				if err != nil {
-					return err
+					fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Could not walk into %s: %s\u001b[0K\n", path, err))
+					return nil
 				}
 
 				if info.IsDir() {
@@ -110,12 +113,11 @@ func New(options ...OptionFn) (*fuzzer, error) {
 			})
 
 			if err != nil {
-				fmt.Printf("error walking the path %q: %v\n", target, err)
+				fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Could not walk into %s: %s\u001b[0K\n", target, err))
 				return
 			}
 		}
 
-		close(words)
 	}()
 
 	return b, nil
@@ -208,6 +210,8 @@ func (b *fuzzer) RecursiveFind(w []string, h string, r *zip.Reader) error {
 }
 
 func (b *fuzzer) Run() error {
+	ch := make(chan interface{})
+	defer close(ch)
 
 	b.writer.Start()
 	defer b.writer.Stop() // flush and stop rendering
@@ -218,6 +222,12 @@ func (b *fuzzer) Run() error {
 		start := time.Now()
 		for {
 			sub := time.Now().Sub(start)
+
+			select {
+			case <-ch:
+				return
+			default:
+			}
 
 			fmt.Fprintf(b.writer, color.GreenString("[ ] Checked %d files in %02.fh%02.fm%02.fs, average rate is: %0.f req/min. \u001b[0K\n", atomic.LoadUint64(&i), sub.Seconds()/3600, sub.Seconds()/60, sub.Seconds(), float64(i)/sub.Minutes()))
 			time.Sleep(time.Millisecond * 100)
