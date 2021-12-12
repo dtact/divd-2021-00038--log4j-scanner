@@ -210,7 +210,7 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r *zip.Reader) error {
 	for _, f := range r.File {
 		if f.Name == "org/apache/logging/log4j/core/lookup/JndiLookup.class" {
 			version, _ := b.signatures[string(h)]
-			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup.class: [%s] with hash %x (version: %s) \u001b[0K", "FOUND", strings.Join(w, " -> "), h, version))
+			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup.class with hash %x (version: %s) \u001b[0K", strings.Join(w, " -> "), h, version))
 		}
 
 		func() error {
@@ -233,7 +233,7 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r *zip.Reader) error {
 			hash := h.Sum(nil)
 
 			if version, ok := b.signatures[string(hash)]; ok {
-				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found vulnerable log4j: [%s] with hash %x (version: %s) \u001b[0K", "FOUND", strings.Join(w, " -> "), h, version))
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found vulnerable log4j with hash %x (version: %s) \u001b[0K", strings.Join(w, " -> "), h, version))
 			}
 
 			// check for PK signature
@@ -286,7 +286,7 @@ func (b *fuzzer) Run() error {
 
 	for w := range b.wordsCh {
 		if strings.HasSuffix(w, "org/apache/logging/log4j/core/lookup/JndiLookup.class") {
-			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup: [%s]  \u001b[0K", "FOUND", w))
+			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup.class \u001b[0K", w))
 		}
 
 		func() error {
@@ -309,7 +309,7 @@ func (b *fuzzer) Run() error {
 			hash := h.Sum(nil)
 
 			if version, ok := b.signatures[string(hash)]; ok {
-				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found vulnerable log4j: [%s] with hash %x (version: %s) \u001b[0K", "FOUND", w, hash, version))
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found vulnerable log4j with hash %x (version: %s) \u001b[0K", w, hash, version))
 			}
 
 			magic := []byte{0x00, 0x00}
