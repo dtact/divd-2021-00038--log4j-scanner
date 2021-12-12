@@ -57,11 +57,6 @@ var globalFlags = []cli.Flag{
 		Name:  "dry",
 		Usage: "enable dry run mode",
 	},
-	cli.IntFlag{
-		Name:  "max-redirects",
-		Usage: "max number of redirects",
-		Value: 0,
-	},
 	cli.BoolFlag{
 		Name:  "verbose",
 		Usage: "enable verbose mode",
