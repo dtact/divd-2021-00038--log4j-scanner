@@ -280,5 +280,6 @@ func (b *fuzzer) Run() error {
 		atomic.AddUint64(&i, 1)
 	}
 
+	fmt.Fprintln(b.writer.Bypass(), color.YellowString("[🏎]: Scan finished! \u001b[0K"))
 	return nil
 }
