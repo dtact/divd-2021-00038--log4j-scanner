@@ -235,6 +235,10 @@ func (b *fuzzer) Run() error {
 	}()
 
 	for w := range b.wordsCh {
+		if strings.HasSuffix(w, "org/apache/logging/log4j/core/lookup/JndiLookup.class") {
+			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup: [%s]  \u001b[0K", "FOUND", w))
+		}
+
 		func() error {
 			r, err := os.OpenFile(w, os.O_RDONLY, 0)
 			if err != nil {
