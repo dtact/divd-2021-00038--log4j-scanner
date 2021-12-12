@@ -18,6 +18,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/fatih/color"
 	"github.com/gosuri/uilive"
@@ -79,6 +81,8 @@ func New(options ...OptionFn) (*fuzzer, error) {
 			suffixes: []string{},
 		},
 	}
+
+	b.writer = uilive.New()
 
 	for _, optionFunc := range options {
 		if err := optionFunc(b); err != nil {
@@ -204,10 +208,21 @@ func (b *fuzzer) RecursiveFind(w []string, h string, r *zip.Reader) error {
 }
 
 func (b *fuzzer) Run() error {
-	b.writer = uilive.New()
 
 	b.writer.Start()
 	defer b.writer.Stop() // flush and stop rendering
+
+	i := uint64(0)
+
+	go func() {
+		start := time.Now()
+		for {
+			sub := time.Now().Sub(start)
+
+			fmt.Fprintf(b.writer, color.GreenString("[ ] Checked %d files in %02.fh%02.fm%02.fs, average rate is: %0.f req/min. \u001b[0K\n", atomic.LoadUint64(&i), sub.Seconds()/3600, sub.Seconds()/60, sub.Seconds(), float64(i)/sub.Minutes()))
+			time.Sleep(time.Millisecond * 100)
+		}
+	}()
 
 	for w := range b.wordsCh {
 		func() error {
@@ -247,6 +262,8 @@ func (b *fuzzer) Run() error {
 
 			return b.RecursiveFind([]string{w}, hash, r2)
 		}()
+
+		atomic.AddUint64(&i, 1)
 	}
 
 	return nil
