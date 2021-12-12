@@ -196,6 +196,15 @@ func Hosts(hosts []string) (func(b *fuzzer) error, error) {
 	}, nil
 }
 
+func AllowList(values []string) (func(b *fuzzer) error, error) {
+	return func(b *fuzzer) error {
+		b.allowList = values
+
+		fmt.Fprintf(os.Stdout, "[ ] Using allow list: %s\n", strings.Join(b.allowList, ","))
+		return nil
+	}, nil
+}
+
 func Targets(targets []string) (func(b *fuzzer) error, error) {
 	return func(b *fuzzer) error {
 		for _, target := range targets {

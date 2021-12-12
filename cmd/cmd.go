@@ -39,6 +39,15 @@ var globalFlags = []cli.Flag{
 		Usage: "",
 		Value: "",
 	},
+	cli.StringSliceFlag{
+		Name:  "allow",
+		Usage: "the allow files",
+		Value: func() *cli.StringSlice {
+			s := cli.StringSlice([]string{
+				"81e0433ae00602c0e4d00424d213b0ab"})
+			return &s
+		}(),
+	},
 	cli.IntFlag{
 		Name:  "num-threads",
 		Usage: "the number of threads to use",
@@ -111,6 +120,14 @@ func New() *Cmd {
 
 		if targets := c.GlobalString("targets"); targets == "" {
 		} else if fn, err := dirbuster.Targets(strings.Split(targets, ",")); err != nil {
+			ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
+			return ec
+		} else {
+			options = append(options, fn)
+		}
+
+		if allowList := c.GlobalStringSlice("allow"); len(allowList) == 0 {
+		} else if fn, err := dirbuster.AllowList(allowList); err != nil {
 			ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
 			return ec
 		} else {

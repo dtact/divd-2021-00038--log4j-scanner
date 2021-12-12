@@ -6,6 +6,7 @@ import (
 
 	"archive/zip"
 	"bytes"
+	"crypto/md5"
 	"errors"
 	"fmt"
 	"io"
@@ -34,6 +35,7 @@ type fuzzer struct {
 	cachePath string
 	method    string
 
+	allowList   []string
 	targetHosts []string
 
 	hosts []string
@@ -140,11 +142,23 @@ func (u *unbufferedReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
 	return
 }
 
-func (b *fuzzer) RecursiveFind(w []string, r *zip.Reader) error {
+func (b *fuzzer) RecursiveFind(w []string, h string, r *zip.Reader) error {
 	// should check for hashes if vulnerable or not
 	for _, f := range r.File {
 		if f.Name == "org/apache/logging/log4j/core/lookup/JndiLookup.class" {
-			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup: [%s]\u001b[0K", strings.Join(w, " -> "), "FOUND"))
+			found := false
+			for _, v := range b.allowList {
+				if !strings.EqualFold(v, h) {
+					continue
+				}
+
+				found = true
+				break
+			}
+
+			if !found {
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup: [%s] with hash %s \u001b[0K", "FOUND", strings.Join(w, " -> "), h))
+			}
 		}
 
 		func() error {
@@ -157,12 +171,23 @@ func (b *fuzzer) RecursiveFind(w []string, r *zip.Reader) error {
 
 			buff := bytes.NewBuffer([]byte{})
 
-			size, err := io.Copy(buff, rc)
+			h := md5.New()
+
+			size, err := io.Copy(buff, io.TeeReader(rc, h))
 			if err != nil {
 				return err
 			}
 
-			//ura := NewUnbufferedReaderAt(rc)
+			hash := fmt.Sprintf("%x", h.Sum(nil))
+
+			// check for PK signature
+
+			data := buff.Bytes()
+
+			if bytes.Compare(data[0:2], []byte("PK")) != 0 {
+				// not a zip
+				return nil
+			}
 
 			br := bytes.NewReader(buff.Bytes())
 
@@ -171,7 +196,7 @@ func (b *fuzzer) RecursiveFind(w []string, r *zip.Reader) error {
 				return err
 			}
 
-			return b.RecursiveFind(append(w, f.Name), r2)
+			return b.RecursiveFind(append(w, f.Name), hash, r2)
 		}()
 	}
 
@@ -191,19 +216,36 @@ func (b *fuzzer) Run() error {
 				return err
 			}
 
-			fi, err := r.Stat()
-			if err != nil {
-				return err
-			}
-
 			defer r.Close()
 
-			r2, err := zip.NewReader(r, fi.Size())
+			buff := bytes.NewBuffer([]byte{})
+
+			h := md5.New()
+
+			size, err := io.Copy(buff, io.TeeReader(r, h))
 			if err != nil {
 				return err
 			}
 
-			return b.RecursiveFind([]string{w}, r2)
+			hash := fmt.Sprintf("%x", h.Sum(nil))
+
+			// check for PK signature
+
+			data := buff.Bytes()
+
+			if bytes.Compare(data[0:2], []byte("PK")) != 0 {
+				// not a zip
+				return nil
+			}
+
+			r.Seek(0, io.SeekStart)
+
+			r2, err := zip.NewReader(r, size)
+			if err != nil {
+				return err
+			}
+
+			return b.RecursiveFind([]string{w}, hash, r2)
 		}()
 	}
 
