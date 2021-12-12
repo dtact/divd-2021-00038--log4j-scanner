@@ -2,6 +2,7 @@ package app
 
 import (
 	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
@@ -197,10 +198,20 @@ func Hosts(hosts []string) (func(b *fuzzer) error, error) {
 }
 
 func AllowList(values []string) (func(b *fuzzer) error, error) {
-	return func(b *fuzzer) error {
-		b.allowList = values
+	bvalues := make([][]byte, len(values))
 
-		fmt.Fprintf(os.Stdout, "[ ] Using allow list: %s\n", strings.Join(b.allowList, ","))
+	for i, _ := range values {
+		v, err := hex.DecodeString(values[i])
+		if err != nil {
+			return nil, err
+		}
+
+		bvalues[i] = v
+	}
+
+	return func(b *fuzzer) error {
+		b.allowList = bvalues
+
 		return nil
 	}, nil
 }

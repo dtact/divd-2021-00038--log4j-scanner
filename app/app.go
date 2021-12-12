@@ -40,7 +40,7 @@ type fuzzer struct {
 	cachePath string
 	method    string
 
-	allowList   []string
+	allowList   [][]byte
 	targetHosts []string
 
 	hosts []string
@@ -177,7 +177,7 @@ var signatures = map[string]string{
 	"2.11.1":     "a20c34cdac4978b76efcc9d0db66e95600bd807c6a0bd3f5793bcb45d07162ec",
 	"2.2":        "c830cde8f929c35dad42cbdb6b28447df69ceffe99937bf420d32424df4d076a",
 	"2.5":        "4f53e4d52efcccdc446017426c15001bb0fe444c7a6cdc9966f8741cf210d997",
-	// "2.15.0":     "419a8512895971b7b4f4f33e620d361254e5c9552b904b0474b09ddd4a6a220b",
+	"2.15.0":     "419a8512895971b7b4f4f33e620d361254e5c9552b904b0474b09ddd4a6a220b",
 }
 
 type unbufferedReaderAt struct {
@@ -205,12 +205,25 @@ func (u *unbufferedReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
 	return
 }
 
+func (b *fuzzer) IsAllowList(h []byte) bool {
+	for _, v := range b.allowList {
+		if bytes.Compare(v, h) == 0 {
+			return true
+
+		}
+	}
+
+	return false
+}
+
 func (b *fuzzer) RecursiveFind(w []string, h []byte, r *zip.Reader) error {
 	// should check for hashes if vulnerable or not
 	for _, f := range r.File {
 		if f.Name == "org/apache/logging/log4j/core/lookup/JndiLookup.class" {
 			version, _ := b.signatures[string(h)]
-			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup.class with hash %x (version: %s) \u001b[0K", strings.Join(w, " -> "), h, version))
+			if !b.IsAllowList(h) {
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup.class with hash %x (version: %s) \u001b[0K", strings.Join(w, " -> "), h, version))
+			}
 		}
 
 		func() error {
@@ -232,8 +245,10 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r *zip.Reader) error {
 
 			hash := h.Sum(nil)
 
-			if version, ok := b.signatures[string(hash)]; ok {
-				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found vulnerable log4j with hash %x (version: %s) \u001b[0K", strings.Join(w, " -> "), h, version))
+			if version, ok := b.signatures[string(hash)]; !ok {
+			} else if b.IsAllowList(hash) {
+			} else {
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found vulnerable log4j with hash %x (version: %s) \u001b[0K", strings.Join(w, " -> "), hash, version))
 			}
 
 			// check for PK signature
@@ -308,7 +323,9 @@ func (b *fuzzer) Run() error {
 
 			hash := h.Sum(nil)
 
-			if version, ok := b.signatures[string(hash)]; ok {
+			if version, ok := b.signatures[string(hash)]; !ok {
+			} else if b.IsAllowList(hash) {
+			} else {
 				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found vulnerable log4j with hash %x (version: %s) \u001b[0K", w, hash, version))
 			}
 
