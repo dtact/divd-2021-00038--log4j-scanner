@@ -39,10 +39,6 @@ var globalFlags = []cli.Flag{
 		Usage: "",
 		Value: "",
 	},
-	cli.StringFlag{
-		Name: "needle",
-		Value:[]string{"org/apache/logging/log4j/core/lookup/JndiLookup.class"}
-	},
 	cli.IntFlag{
 		Name:  "num-threads",
 		Usage: "the number of threads to use",
