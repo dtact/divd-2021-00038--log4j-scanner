@@ -5,13 +5,15 @@ import (
 	"strings"
 
 	dirbuster "github.com/dutchcoders/divd-2021-00038--log4j-scanner/app"
+	build "github.com/dutchcoders/divd-2021-00038--log4j-scanner/build"
 	"github.com/fatih/color"
 	logging "github.com/op/go-logging"
 
 	cli "github.com/urfave/cli"
 )
 
-var Version = "0.1"
+var Version = fmt.Sprintf("%s (build on %s)", build.ShortCommitID, build.BuildDate)
+
 var helpTemplate = `NAME:
 {{.Name}} - {{.Usage}}
 
@@ -114,7 +116,7 @@ func New() *Cmd {
 		}
 
 		if targets := c.GlobalString("targets"); targets == "" {
-		} else if fn, err := dirbuster.Targets(strings.Split(targets, ",")); err != nil {
+		} else if fn, err := dirbuster.TargetPaths(strings.Split(targets, ",")); err != nil {
 			ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
 			return ec
 		} else {
@@ -148,7 +150,7 @@ func New() *Cmd {
 		}
 
 		if args := c.Args(); len(args) == 0 {
-		} else if fn, err := dirbuster.Targets(args); err != nil { //|| fn.Host == "" {
+		} else if fn, err := dirbuster.TargetPaths(args); err != nil { //|| fn.Host == "" {
 			ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
 			return ec
 		} else {

@@ -4,8 +4,10 @@ import (
 
 	// "github.com/dutchcoders/dirbuster/vendor.bak/gopkg.in/src-d/go-git.v4/utils/ioutil"
 
+	"archive/tar"
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -13,14 +15,14 @@ import (
 	"io"
 	"io/fs"
 	"io/ioutil"
-	"net"
-	"net/url"
-	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"os"
 
 	"github.com/fatih/color"
 	"github.com/gosuri/uilive"
@@ -35,22 +37,14 @@ type fuzzer struct {
 	writer *uilive.Writer
 	output *writer
 
-	dialer func(network, addr string) (net.Conn, error)
+	allowList [][]byte
 
-	cachePath string
-	method    string
+	remoteHosts []string
+	targetPaths []string
 
-	allowList   [][]byte
-	targetHosts []string
-
-	hosts []string
-
-	proxyURL *url.URL
-
-	template Template
-
-	wordsCh chan string
+	stats Stats
 }
+
 type writer struct {
 	f io.WriteCloser
 	m sync.Mutex
@@ -76,13 +70,8 @@ func (w *writer) WriteLine(format string, args ...interface{}) {
 }
 
 func New(options ...OptionFn) (*fuzzer, error) {
-	words := make(chan string)
-
 	b := &fuzzer{
-		wordsCh: words,
-		config: config{
-			suffixes: []string{},
-		},
+		config:     config{},
 		signatures: map[string]string{},
 	}
 
@@ -100,35 +89,9 @@ func New(options ...OptionFn) (*fuzzer, error) {
 		}
 	}
 
-	if len(b.targetHosts) == 0 {
-		return nil, fmt.Errorf("No target hosts set, nothing to do")
+	if len(b.targetPaths) == 0 {
+		return nil, fmt.Errorf("No target paths set, nothing to do")
 	}
-
-	go func() {
-		defer close(words)
-
-		for _, target := range b.targetHosts {
-			err := filepath.Walk(target, func(path string, info fs.FileInfo, err error) error {
-				if err != nil {
-					fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Could not walk into %s: %s\u001b[0K\n", path, err))
-					return nil
-				}
-
-				if info.IsDir() {
-					return nil
-				}
-
-				words <- path
-				return nil
-			})
-
-			if err != nil {
-				fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Could not walk into %s: %s\u001b[0K\n", target, err))
-				return
-			}
-		}
-
-	}()
 
 	return b, nil
 }
@@ -216,17 +179,264 @@ func (b *fuzzer) IsAllowList(h []byte) bool {
 	return false
 }
 
-func (b *fuzzer) RecursiveFind(w []string, h []byte, r *zip.Reader) error {
+type ArchiveFile interface {
+	FileInfo() os.FileInfo
+	Name() string
+	Open() (io.ReadCloser, error)
+}
+
+type ArchiveReader interface {
+	Walk() <-chan interface{} // ArchiveFile or ArchiveError
+}
+
+type TARArchiveReader struct {
+	*tar.Reader
+}
+
+type TARArchiveFile struct {
+	*tar.Header
+
+	r io.Reader
+}
+
+func (za *TARArchiveFile) Name() string {
+	return za.Header.Name
+}
+
+type TARArchiveFileReader struct {
+	io.ReadCloser
+}
+
+func (za *TARArchiveFile) Open() (io.ReadCloser, error) {
+	lr := io.LimitReader(za.r, za.Header.Size)
+	return &TARArchiveFileReader{ioutil.NopCloser(lr)}, nil
+}
+
+func (za *TARArchiveFileReader) Close() error {
+	io.Copy(io.Discard, za.ReadCloser)
+	return nil
+}
+
+func (za *TARArchiveReader) Walk() <-chan interface{} {
+	ch := make(chan interface{})
+
+	go func() {
+		defer close(ch)
+
+		for {
+			header, err := za.Reader.Next()
+
+			if err == io.EOF {
+				break
+			}
+
+			if errors.Is(err, tar.ErrHeader) {
+				// not a tar
+				break
+			}
+
+			if err != nil {
+				ch <- ArchiveError{p: "", Err: err}
+				break
+			}
+
+			if header.Typeflag != tar.TypeReg {
+				continue
+			}
+
+			lr := io.LimitReader(za.Reader, header.Size)
+
+			buff := bytes.NewBuffer([]byte{})
+
+			if _, err := io.Copy(buff, lr); err != nil {
+				ch <- ArchiveError{p: "", Err: err}
+				continue
+			}
+
+			ch <- &TARArchiveFile{header, bytes.NewReader(buff.Bytes())}
+		}
+	}()
+
+	return ch
+}
+
+func NewGzipTARArchiveReader(br io.ReaderAt, size int64) (ArchiveReader, error) {
+	gr, err := gzip.NewReader(io.NewSectionReader(br, 0, size))
+	if err != nil {
+		return nil, err
+	}
+
+	r2 := tar.NewReader(gr)
+
+	return &TARArchiveReader{r2}, nil
+}
+
+func NewTARArchiveReader(br io.ReaderAt, size int64) (ArchiveReader, error) {
+	r2 := tar.NewReader(io.NewSectionReader(br, 0, size))
+
+	return &TARArchiveReader{r2}, nil
+}
+
+type DirectoryReader struct {
+	p string
+}
+
+type DirectoryFile struct {
+	fi os.FileInfo
+	p  string
+}
+
+func (za *DirectoryFile) Name() string {
+	return za.p
+}
+func (za *DirectoryFile) FileInfo() os.FileInfo {
+	return za.fi
+}
+
+func (za *DirectoryFile) Open() (io.ReadCloser, error) {
+	r, err := os.OpenFile(za.p, os.O_RDONLY, 0)
+	return r, err
+}
+
+type ArchiveError struct {
+	p string
+
+	Err error
+}
+
+func (ae *ArchiveError) Error() string {
+	return ae.Err.Error()
+}
+
+func (za *DirectoryReader) Walk() <-chan interface{} {
+	ch := make(chan interface{})
+
+	go func() {
+		defer close(ch)
+
+		err := filepath.Walk(za.p, func(path string, info fs.FileInfo, err error) error {
+			if err != nil {
+				ch <- ArchiveError{p: za.p, Err: err}
+				return nil
+			}
+
+			if info.IsDir() {
+				return nil
+			}
+
+			ch <- &DirectoryFile{fi: info, p: path}
+			return nil
+		})
+
+		if err != nil {
+			ch <- ArchiveError{p: za.p, Err: err}
+			return
+		}
+	}()
+
+	return ch
+}
+
+func NewDirectoryReader(p string) (ArchiveReader, error) {
+	return &DirectoryReader{p}, nil
+}
+
+type ZIPArchiveFile struct {
+	*zip.File
+}
+
+func (za *ZIPArchiveFile) Name() string {
+	return za.File.Name
+}
+
+func (za *ZIPArchiveFile) Open() (io.ReadCloser, error) {
+	return za.File.Open()
+}
+
+type ZIPArchiveReader struct {
+	*zip.Reader
+}
+
+func (za *ZIPArchiveReader) Walk() <-chan interface{} {
+	ch := make(chan interface{})
+	go func() {
+		defer close(ch)
+		for _, f := range za.Reader.File {
+			ch <- &ZIPArchiveFile{f}
+		}
+	}()
+
+	return ch
+}
+
+func NewZipArchiveReader(br io.ReaderAt, size int64) (ArchiveReader, error) {
+	r2, err := zip.NewReader(br, size)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ZIPArchiveReader{r2}, nil
+}
+
+type Stats struct {
+	files               uint64
+	errors              uint64
+	vulnerableLibraries uint64
+	vulnerableFiles     uint64
+}
+
+func (s *Stats) Files() uint64 {
+	return atomic.LoadUint64(&s.files)
+}
+
+func (s *Stats) IncFile() {
+	atomic.AddUint64(&s.files, 1)
+}
+
+func (s *Stats) Errors() uint64 {
+	return atomic.LoadUint64(&s.errors)
+}
+
+func (s *Stats) IncError() {
+	atomic.AddUint64(&s.errors, 1)
+}
+
+func (s *Stats) VulnerableFiles() uint64 {
+	return atomic.LoadUint64(&s.vulnerableFiles)
+}
+
+func (s *Stats) IncVulnerableFile() {
+	atomic.AddUint64(&s.vulnerableFiles, 1)
+}
+
+func (s *Stats) VulnerableLibraries() uint64 {
+	return atomic.LoadUint64(&s.vulnerableLibraries)
+}
+
+func (s *Stats) IncVulnerableLibrary() {
+	atomic.AddUint64(&s.vulnerableLibraries, 1)
+}
+
+func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 	// should check for hashes if vulnerable or not
-	for _, f := range r.File {
-		if f.Name == "org/apache/logging/log4j/core/lookup/JndiLookup.class" {
+	for v := range r.Walk() {
+		if ae, ok := v.(ArchiveError); ok {
+			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not traverse into %s \u001b[0K", strings.Join(w, " -> "), ae.Error()))
+			b.stats.IncError()
+			continue
+		}
+
+		f := v.(ArchiveFile)
+
+		if path.Base(f.Name()) == "JndiLookup.class" {
 			version, _ := b.signatures[string(h)]
 			if !b.IsAllowList(h) {
-				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup.class with hash %x (version: %s) \u001b[0K", strings.Join(w, " -> "), h, version))
+				b.stats.IncVulnerableFile()
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup.class with hash %x (version: %s) \u001b[0K", strings.Join(append(w, f.Name()), " -> "), h, version))
 			}
 		}
 
-		func() error {
+		if err := func() error {
 			rc, err := f.Open()
 			if err != nil {
 				return err
@@ -245,30 +455,53 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r *zip.Reader) error {
 
 			hash := h.Sum(nil)
 
-			if version, ok := b.signatures[string(hash)]; !ok {
-			} else if b.IsAllowList(hash) {
-			} else {
-				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found vulnerable log4j with hash %x (version: %s) \u001b[0K", strings.Join(w, " -> "), hash, version))
-			}
-
-			// check for PK signature
-
-			data := buff.Bytes()
-
-			if bytes.Compare(data[0:2], []byte("PK")) != 0 {
-				// not a zip
+			// we're always making sure to read the complete file (for eg tar)
+			if size == 0 {
+				// skipping empty file
 				return nil
 			}
 
-			br := bytes.NewReader(buff.Bytes())
+			if version, ok := b.signatures[string(hash)]; !ok {
+			} else if b.IsAllowList(hash) {
+			} else {
+				b.stats.IncVulnerableLibrary()
 
-			r2, err := zip.NewReader(br, size)
-			if err != nil {
-				return err
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found vulnerable log4j with hash %x (version: %s) \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash, version))
 			}
 
-			return b.RecursiveFind(append(w, f.Name), hash, r2)
-		}()
+			data := buff.Bytes()
+
+			br := bytes.NewReader(data)
+
+			// check for PK signature
+			if bytes.Compare(data[0:2], []byte("PK")) == 0 {
+				r2, err := NewZipArchiveReader(br, size)
+				if err != nil {
+					b.stats.IncError()
+					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open zip file %x \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash))
+				}
+
+				return b.RecursiveFind(append(w, f.Name()), hash, r2)
+			} else if strings.EqualFold(path.Ext(f.Name()), ".tgz") || strings.EqualFold(path.Ext(f.Name()), ".tar.gz") { //  bytes.Compare(data[0:2], []byte{0x1F, 0x8B}) == 0 {
+				// tgz
+				r2, err := NewGzipTARArchiveReader(br, size)
+				if err != nil {
+					b.stats.IncError()
+					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open tar file %x \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash))
+					return err
+				}
+
+				return b.RecursiveFind(append(w, f.Name()), hash, r2)
+			} else {
+				// bla
+			}
+
+			b.stats.IncFile()
+
+			return nil
+		}(); err != nil {
+			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][ ] Error while scanning: %s => %s \u001b[0K", strings.Join(w, "->"), err))
+		}
 	}
 
 	return nil
@@ -281,10 +514,8 @@ func (b *fuzzer) Run() error {
 	b.writer.Start()
 	defer b.writer.Stop() // flush and stop rendering
 
-	i := uint64(0)
-
+	start := time.Now()
 	go func() {
-		start := time.Now()
 		for {
 			sub := time.Now().Sub(start)
 
@@ -294,65 +525,26 @@ func (b *fuzzer) Run() error {
 			default:
 			}
 
-			fmt.Fprintf(b.writer, color.GreenString("[ ] Checked %d files in %02.fh%02.fm%02.fs, average rate is: %0.f req/min. \u001b[0K\n", atomic.LoadUint64(&i), sub.Seconds()/3600, sub.Seconds()/60, sub.Seconds(), float64(i)/sub.Minutes()))
+			i := b.stats.Files()
+
+			fmt.Fprintf(b.writer, color.GreenString("[ ] Checked %d files in %02.fh%02.fm%02.fs, average rate is: %0.f files/min. \u001b[0K\n", atomic.LoadUint64(&i), sub.Seconds()/3600, sub.Seconds()/60, sub.Seconds(), float64(i)/sub.Minutes()))
 			time.Sleep(time.Millisecond * 100)
 		}
 	}()
 
-	for w := range b.wordsCh {
-		if strings.HasSuffix(w, "org/apache/logging/log4j/core/lookup/JndiLookup.class") {
-			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup.class \u001b[0K", w))
+	for _, target := range b.targetPaths {
+		dr, err := NewDirectoryReader(target)
+		if err != nil {
+			fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Could not walk into %s: %s\u001b[0K\n", target, err))
 		}
 
-		func() error {
-			r, err := os.OpenFile(w, os.O_RDONLY, 0)
-			if err != nil {
-				return err
-			}
-
-			defer r.Close()
-
-			h := sha256.New()
-
-			size, err := io.Copy(h, r)
-			if err != nil {
-				return err
-			}
-
-			r.Seek(0, io.SeekStart)
-
-			hash := h.Sum(nil)
-
-			if version, ok := b.signatures[string(hash)]; !ok {
-			} else if b.IsAllowList(hash) {
-			} else {
-				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found vulnerable log4j with hash %x (version: %s) \u001b[0K", w, hash, version))
-			}
-
-			magic := []byte{0x00, 0x00}
-			if _, err := r.Read(magic); err != nil {
-				return err
-			}
-
-			// check for PK signature
-			if bytes.Compare(magic[0:2], []byte("PK")) != 0 {
-				// not a zip
-				return nil
-			}
-
-			r.Seek(0, io.SeekStart)
-
-			r2, err := zip.NewReader(r, size)
-			if err != nil {
-				return err
-			}
-
-			return b.RecursiveFind([]string{w}, hash, r2)
-		}()
-
-		atomic.AddUint64(&i, 1)
+		if err := b.RecursiveFind([]string{}, []byte{}, dr); err != nil {
+			fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Could not walk into %s: %s\u001b[0K\n", target, err))
+		}
 	}
 
-	fmt.Fprintln(b.writer.Bypass(), color.YellowString("[🏎]: Scan finished! \u001b[0K"))
+	i := b.stats.Files()
+	sub := time.Now().Sub(start)
+	fmt.Fprintln(b.writer.Bypass(), color.YellowString("[🏎]: Scan finished! %d files scanned, %d vulnerable files found, %d vulnerable libraries found, %d errors occured,  in %02.fh%02.fm%02.fs, average rate is: %0.f files/min. \u001b[0K", i, b.stats.VulnerableFiles(), b.stats.VulnerableLibraries(), b.stats.Errors(), sub.Seconds()/3600, sub.Seconds()/60, sub.Seconds(), float64(i)/sub.Minutes()))
 	return nil
 }
