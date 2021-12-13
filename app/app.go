@@ -235,6 +235,11 @@ func (za *TARArchiveReader) Walk() <-chan interface{} {
 				break
 			}
 
+			if errors.Is(err, io.ErrUnexpectedEOF) {
+				// not a valid tar
+				break
+			}
+
 			if err != nil {
 				ch <- ArchiveError{p: "", Err: err}
 				break
@@ -426,6 +431,11 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 			continue
 		}
 
+		// only counting actual files
+		if _, ok := (r.(*DirectoryReader)); ok {
+			b.stats.IncFile()
+		}
+
 		f := v.(ArchiveFile)
 
 		if path.Base(f.Name()) == "JndiLookup.class" {
@@ -482,7 +492,7 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 				}
 
 				return b.RecursiveFind(append(w, f.Name()), hash, r2)
-			} else if strings.EqualFold(path.Ext(f.Name()), ".tgz") || strings.EqualFold(path.Ext(f.Name()), ".tar.gz") { //  bytes.Compare(data[0:2], []byte{0x1F, 0x8B}) == 0 {
+			} else if bytes.Compare(data[0:2], []byte{0x1F, 0x8B}) == 0 {
 				// tgz
 				r2, err := NewGzipTARArchiveReader(br, size)
 				if err != nil {
@@ -493,10 +503,17 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 
 				return b.RecursiveFind(append(w, f.Name()), hash, r2)
 			} else {
-				// bla
-			}
+				// always test if file is a tar
 
-			b.stats.IncFile()
+				r2, err := NewTARArchiveReader(br, size)
+				if err != nil {
+					b.stats.IncError()
+					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open tar file %x \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash))
+					return err
+				}
+
+				return b.RecursiveFind(append(w, f.Name()), hash, r2)
+			}
 
 			return nil
 		}(); err != nil {
