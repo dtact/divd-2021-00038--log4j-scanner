@@ -9,7 +9,7 @@ import (
 	"github.com/fatih/color"
 	logging "github.com/op/go-logging"
 
-	cli "github.com/urfave/cli"
+	cli "github.com/urfave/cli/v2"
 )
 
 var Version = fmt.Sprintf("%s (build on %s)", build.ShortCommitID, build.BuildDate)
@@ -36,38 +36,35 @@ VERSION:
 var log = logging.MustGetLogger("dirbuster/cmd")
 
 var globalFlags = []cli.Flag{
-	cli.StringFlag{
+	&cli.StringFlag{
 		Name:  "targets",
 		Usage: "",
 		Value: "",
 	},
-	cli.StringSliceFlag{
+	&cli.StringSliceFlag{
 		Name:  "allow",
 		Usage: "the allow files",
-		Value: func() *cli.StringSlice {
-			s := cli.StringSlice([]string{
-				"419a8512895971b7b4f4f33e620d361254e5c9552b904b0474b09ddd4a6a220b"})
-			return &s
-		}(),
+		Value: cli.NewStringSlice(
+			"419a8512895971b7b4f4f33e620d361254e5c9552b904b0474b09ddd4a6a220b"),
 	},
-	cli.IntFlag{
+	&cli.IntFlag{
 		Name:  "num-threads",
 		Usage: "the number of threads to use",
 		Value: 10,
 	},
-	cli.BoolFlag{
+	&cli.BoolFlag{
 		Name:  "dry",
 		Usage: "enable dry run mode",
 	},
-	cli.BoolFlag{
+	&cli.BoolFlag{
 		Name:  "verbose",
 		Usage: "enable verbose mode",
 	},
-	cli.BoolFlag{
+	&cli.BoolFlag{
 		Name:  "debug",
 		Usage: "enable debug mode",
 	},
-	cli.BoolFlag{
+	&cli.BoolFlag{
 		Name:  "json",
 		Usage: "output json",
 	},
@@ -77,19 +74,19 @@ type Cmd struct {
 	*cli.App
 }
 
-func VersionAction(c *cli.Context) {
+func VersionAction(c *cli.Context) error {
 	fmt.Println(color.YellowString(fmt.Sprintf("dirbuster")))
+	return nil
 }
 
 func New() *Cmd {
 	app := cli.NewApp()
 	app.Name = "divd-2021-00038--log4j-scanner"
-	app.Author = "DTACT (https://dtact.com/)"
 	app.Usage = ""
 	app.Description = ``
 	app.Flags = globalFlags
 	app.CustomAppHelpTemplate = helpTemplate
-	app.Commands = []cli.Command{
+	app.Commands = []*cli.Command{
 		{
 			Name:   "version",
 			Action: VersionAction,
@@ -101,13 +98,13 @@ func New() *Cmd {
 	}
 
 	app.Action = func(c *cli.Context) error {
-		fmt.Println("divd-2021-00038--log4j-scanner")
+		fmt.Println("divd-2021-00038--log4j-scanner by DTACT")
 		fmt.Println("http://github.com/dtact/divd-2021-00038--log4j-scanner")
 		fmt.Println("--------------------------------------")
 
 		options := []dirbuster.OptionFn{}
 
-		v := c.GlobalInt("num-threads")
+		v := c.Int("num-threads")
 		if fn, err := dirbuster.NumThreads(v); err != nil {
 			ec := cli.NewExitError(color.RedString(err.Error()), 1)
 			return ec
@@ -115,7 +112,7 @@ func New() *Cmd {
 			options = append(options, fn)
 		}
 
-		if targets := c.GlobalString("targets"); targets == "" {
+		if targets := c.String("targets"); targets == "" {
 		} else if fn, err := dirbuster.TargetPaths(strings.Split(targets, ",")); err != nil {
 			ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
 			return ec
@@ -123,7 +120,7 @@ func New() *Cmd {
 			options = append(options, fn)
 		}
 
-		if allowList := c.GlobalStringSlice("allow"); len(allowList) == 0 {
+		if allowList := c.StringSlice("allow"); len(allowList) == 0 {
 		} else if fn, err := dirbuster.AllowList(allowList); err != nil {
 			ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
 			return ec
@@ -149,8 +146,8 @@ func New() *Cmd {
 			options = append(options, fn)
 		}
 
-		if args := c.Args(); len(args) == 0 {
-		} else if fn, err := dirbuster.TargetPaths(args); err != nil { //|| fn.Host == "" {
+		if args := c.Args(); !args.Present() {
+		} else if fn, err := dirbuster.TargetPaths(args.Slice()); err != nil { //|| fn.Host == "" {
 			ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
 			return ec
 		} else {

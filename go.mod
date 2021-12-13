@@ -7,8 +7,8 @@ require (
 	github.com/gosuri/uilive v0.0.4
 	github.com/olivere/elastic v6.2.37+incompatible
 	github.com/op/go-logging v0.0.0-20160315200505-970db520ece7
-	github.com/urfave/cli v1.22.5
 	golang.org/x/net v0.0.0-20211209124913-491a49abca63
+	github.com/urfave/cli/v2 v2.3.0
 	gopkg.in/src-d/go-git.v4 v4.13.1
 	gopkg.in/yaml.v2 v2.4.0
 )
