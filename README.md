@@ -18,10 +18,15 @@ divd-2021-00038--log4j-scanner-linux-[amd64|arm64] {target-path}
 divd-2021-00038--log4j-scanner-darwin-amd64 {target-path}
 ```
 
+## Build from source
 
-# Development
-```sh
-GOARCH=amd64 GOOS=linux go build -o ./.builds/divd-2021-00038--log4j-scanner-linux-amd64 ./main.go
+Requirements:
+- [Go 1.16 or newer](https://golang.org/dl/)
+
+### For development
+```bash
+$ git clone "https://github.com/dtact/divd-2021-00038--log4j-scanner.git"
+$ go build -o ./.builds/divd-2021-00038--log4j-scanner ./main.go
 ```
 
 # Copyright and license
