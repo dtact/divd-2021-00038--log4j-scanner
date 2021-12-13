@@ -489,7 +489,7 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 			br := bytes.NewReader(data)
 
 			// check for PK signature
-			if bytes.Compare(data[0:2], []byte("PK")) == 0 {
+			if bytes.Compare(data[0:4], []byte{0x50, 0x4B, 0x03, 0x04}) == 0 {
 				r2, err := NewZipArchiveReader(br, size)
 				if err != nil {
 					b.stats.IncError()
@@ -498,7 +498,7 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 				}
 
 				return b.RecursiveFind(append(w, f.Name()), hash, r2)
-			} else if bytes.Compare(data[0:2], []byte{0x1F, 0x8B}) == 0 {
+			} else if bytes.Compare(data[0:3], []byte{0x1F, 0x8B, 0x08}) == 0 {
 				// tgz
 				r2, err := NewGzipTARArchiveReader(br, size)
 				if err != nil {
