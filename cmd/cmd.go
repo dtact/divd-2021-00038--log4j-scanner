@@ -116,7 +116,7 @@ func New() *Cmd {
 		}
 
 		if targets := c.GlobalString("targets"); targets == "" {
-		} else if fn, err := dirbuster.Targets(strings.Split(targets, ",")); err != nil {
+		} else if fn, err := dirbuster.TargetPaths(strings.Split(targets, ",")); err != nil {
 			ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
 			return ec
 		} else {
@@ -150,7 +150,7 @@ func New() *Cmd {
 		}
 
 		if args := c.Args(); len(args) == 0 {
-		} else if fn, err := dirbuster.Targets(args); err != nil { //|| fn.Host == "" {
+		} else if fn, err := dirbuster.TargetPaths(args); err != nil { //|| fn.Host == "" {
 			ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
 			return ec
 		} else {
