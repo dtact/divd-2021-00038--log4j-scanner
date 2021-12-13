@@ -325,7 +325,7 @@ func (za *DirectoryReader) Walk() <-chan interface{} {
 				return nil
 			}
 
-			if info.IsDir() {
+			if !info.Mode().IsRegular() {
 				return nil
 			}
 
@@ -489,6 +489,7 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 				if err != nil {
 					b.stats.IncError()
 					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open zip file %x \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash))
+					return err
 				}
 
 				return b.RecursiveFind(append(w, f.Name()), hash, r2)
