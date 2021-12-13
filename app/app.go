@@ -447,6 +447,11 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 		}
 
 		if err := func() error {
+			// ignore files > 1GB
+			if f.FileInfo().Size() > 1073741824 {
+				return nil
+			}
+
 			rc, err := f.Open()
 			if err != nil {
 				return err
