@@ -5,13 +5,15 @@ import (
 	"strings"
 
 	dirbuster "github.com/dutchcoders/divd-2021-00038--log4j-scanner/app"
+	build "github.com/dutchcoders/divd-2021-00038--log4j-scanner/build"
 	"github.com/fatih/color"
 	logging "github.com/op/go-logging"
 
 	cli "github.com/urfave/cli"
 )
 
-var Version = "0.1"
+var Version = fmt.Sprintf("%s (build on %s)", build.ShortCommitID, build.BuildDate)
+
 var helpTemplate = `NAME:
 {{.Name}} - {{.Usage}}
 

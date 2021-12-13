@@ -13,7 +13,7 @@ CUR_DIR = $(shell pwd)
 
 WORKDIR   = ${ROOTDIR}/.build
 
-MODULE 	  = go.dutchsec.com/divd-2021-00038--log4j-scanner
+MODULE 	  = github.com/dutchcoders/divd-2021-00038--log4j-scanner
 TESTS = .*
 
 define LDFLAGS
@@ -44,6 +44,8 @@ GOTESTARGS+=-coverprofile $(COVERAGE_FILE)
 endif
 
 CI_PROJECT_NAME=divd-2021-00038--log4j-scanner
+
+LDFLAGS+=-s -w
 
 test:
 	$(GO) test ./...
