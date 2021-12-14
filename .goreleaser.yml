@@ -5,7 +5,7 @@ before:
 builds:
   - <<: &build_defaults
       ldflags:
-        - -s -w -X
+        - -s -w
         - -X "github.com/dutchcoders/divd-2021-00038--log4j-scanner/build.BuildDate={{.Date}}"
         - -X "github.com/dutchcoders/divd-2021-00038--log4j-scanner/build.CommitID={{.Commit}}"
         - -X "github.com/dutchcoders/divd-2021-00038--log4j-scanner/build.ShortCommitID={{.ShortCommit}}"
@@ -17,12 +17,26 @@ builds:
   - <<: *build_defaults
     id: linux
     goos: [linux]
-    goarch: [386, amd64, arm64]
+    goarch: [amd64, arm64]
   - <<: *build_defaults
     id: windows
     goos: [windows]
-    goarch: [386, amd64, arm64]
+    goarch: [amd64, arm64]
   - <<: *build_defaults
     id: generate-usage
     goos: [linux]
     goarch: [amd64]
+archives:
+  - id: nix
+    builds: [macos, linux]
+    <<: &archive_defaults
+      name_template: "{{ .ProjectName }}_v{{ .Version }}_{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+      files:
+        - none*
+    wrap_in_directory: false
+    format: tar.gz
+  - id: windows
+    builds: [windows]
+    <<: *archive_defaults
+    wrap_in_directory: false
+    format: zip
