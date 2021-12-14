@@ -4,6 +4,9 @@ This scanner will recursively scan paths including archives for vulnerable log4j
 
 Currently the allow list defines non exploitable versions, in this case log4j-core 2.16.0.
 
+:bangbang: | This software still very alpha, stay cautious when using this applicatin. We've tested it in quite a few cases, and it seems to work correctly in many cases. If you have any doubts, requests or issues please create an issue.
+:---: | :---
+
 # Scanning
 
 ## Usage
