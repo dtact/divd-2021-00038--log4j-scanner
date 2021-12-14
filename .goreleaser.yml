@@ -1,0 +1,18 @@
+builds:
+    ldflags:
+        - -s -w -X 
+        - -X "build.BuildDate={{.Date}}" 
+        - -X "build.CommitID={{.Commit}}"
+        - -X "build.ShortCommitID={{.ShortCommit}}"
+        - -X "build.GoVersion={{.Env.GOVERSION}}"
+
+    goos:
+      - linux
+      - freebsd
+      - windows
+
+    goarch:
+      - amd64
+      - arm
+      - arm64
+

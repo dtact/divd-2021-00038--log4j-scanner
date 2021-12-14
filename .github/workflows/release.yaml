@@ -22,6 +22,8 @@ jobs:
           go-version: 1.17
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
+        env:
+            GOVERSION: ${{ env.GOVERSION }}
         with:
           distribution: goreleaser
           version: latest
