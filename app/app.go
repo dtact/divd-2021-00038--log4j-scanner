@@ -654,7 +654,7 @@ func (b *fuzzer) RecursivePatch(w []string, h []byte, r ArchiveReader, aw Archiv
 
 					return w.Close()
 				default:
-					panic(fmt.Sprintf("Unsupported type", reflect.TypeOf(f)))
+					panic(fmt.Sprintf("Unsupported type: %s", reflect.TypeOf(f)))
 				}
 			}
 
