@@ -45,7 +45,8 @@ var globalFlags = []cli.Flag{
 		Name:  "allow",
 		Usage: "the allow files",
 		Value: cli.NewStringSlice(
-			"419a8512895971b7b4f4f33e620d361254e5c9552b904b0474b09ddd4a6a220b"),
+			"419a8512895971b7b4f4f33e620d361254e5c9552b904b0474b09ddd4a6a220b",
+			"5d241620b10e3f1475320bc9552cf7bcfa27eeb9b1b6a891449e76db4b4a02a8"),
 	},
 	&cli.IntFlag{
 		Name:  "num-threads",
