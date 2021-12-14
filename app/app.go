@@ -383,6 +383,15 @@ func (za *ZIPArchiveReader) Walk() <-chan interface{} {
 	go func() {
 		defer close(ch)
 		for _, f := range za.Reader.File {
+			if f.FileHeader.Flags&0x1 == 1 {
+				ch <- ArchiveError{
+					p:   f.Name,
+					Err: fmt.Errorf("Could not open encrypted file in zip: %s", f.Name),
+				}
+
+				continue
+			}
+
 			ch <- &ZIPArchiveFile{f}
 		}
 	}()
