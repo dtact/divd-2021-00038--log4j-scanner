@@ -715,7 +715,7 @@ func (b *fuzzer) RecursivePatch(w []string, h []byte, r ArchiveReader, aw Archiv
 
 					// we only write the file if it is patched, otherwise we'll just write the original file
 					if patched {
-						if b.debug {
+						if b.verbose {
 							fmt.Fprintln(b.writer.Bypass(), color.GreenString("[!][%s] patched %s \u001b[0K", strings.Join(append(w, f.Name()), " -> "), f.Name()))
 						}
 
@@ -766,7 +766,7 @@ func (b *fuzzer) RecursivePatch(w []string, h []byte, r ArchiveReader, aw Archiv
 
 					// we only write the file if it is patched, otherwise we'll just write the original file
 					if patched {
-						if b.debug {
+						if b.verbose {
 							fmt.Fprintln(b.writer.Bypass(), color.GreenString("[!][%s] patched %s \u001b[0K", strings.Join(append(w, f.Name()), " -> "), f.Name()))
 						}
 						return patched, writeFunc(aw, tf, size)
@@ -809,7 +809,7 @@ func (b *fuzzer) RecursivePatch(w []string, h []byte, r ArchiveReader, aw Archiv
 
 					// we only write the file if it is patched, otherwise we'll just write the original file
 					if patched {
-						if b.debug {
+						if b.verbose {
 							fmt.Fprintln(b.writer.Bypass(), color.GreenString("[!][%s] patched %s \u001b[0K", strings.Join(append(w, f.Name()), " -> "), f.Name()))
 						}
 
@@ -828,7 +828,7 @@ func (b *fuzzer) RecursivePatch(w []string, h []byte, r ArchiveReader, aw Archiv
 					b.stats.IncVulnerableFile()
 					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup.class with hash %x (version: %s) \u001b[0K", strings.Join(append(w, f.Name()), " -> "), h, version))
 
-					if _, ok := v.(DirectoryFile); ok {
+					if _, ok := v.(*DirectoryFile); ok {
 						return true, os.Rename(f.Name(), fmt.Sprintf("%s.vulnerable", f.Name()))
 					} else {
 						// we are removing this file from the output
@@ -839,6 +839,11 @@ func (b *fuzzer) RecursivePatch(w []string, h []byte, r ArchiveReader, aw Archiv
 
 			if b.debug {
 				fmt.Fprintln(b.writer.Bypass(), color.GreenString("[!][%s] writing %s \u001b[0K", strings.Join(append(w, f.Name()), " -> "), f.Name()))
+			}
+
+			// don't copy to files on fs, take shortcut
+			if _, ok := v.(*DirectoryFile); ok {
+				return false, nil
 			}
 
 			return false, writeFunc(aw, rc, f.FileInfo().Size())
