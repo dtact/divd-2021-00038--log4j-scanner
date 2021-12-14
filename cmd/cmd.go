@@ -79,6 +79,62 @@ func VersionAction(c *cli.Context) error {
 	return nil
 }
 
+func PatchAction(c *cli.Context) error {
+	fmt.Println(color.YellowString(fmt.Sprintf("Patchin'")))
+	fmt.Println("divd-2021-00038--log4j-scanner by DTACT")
+	fmt.Println("http://github.com/dtact/divd-2021-00038--log4j-scanner")
+	fmt.Println("--------------------------------------")
+
+	options := []dirbuster.OptionFn{}
+
+	if targets := c.String("targets"); targets == "" {
+	} else if fn, err := dirbuster.TargetPaths(strings.Split(targets, ",")); err != nil {
+		ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
+		return ec
+	} else {
+		options = append(options, fn)
+	}
+
+	if !c.Bool("dry") {
+	} else if fn, err := dirbuster.Dry(); err != nil {
+	} else {
+		options = append(options, fn)
+	}
+
+	if !c.Bool("debug") {
+	} else if fn, err := dirbuster.Debug(); err != nil {
+	} else {
+		options = append(options, fn)
+	}
+
+	if !c.Bool("verbose") {
+	} else if fn, err := dirbuster.Verbose(); err != nil {
+	} else {
+		options = append(options, fn)
+	}
+
+	if args := c.Args(); !args.Present() {
+	} else if fn, err := dirbuster.TargetPaths(args.Slice()); err != nil { //|| fn.Host == "" {
+		ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
+		return ec
+	} else {
+		options = append(options, fn)
+	}
+
+	b, err := dirbuster.New(options...)
+	if err != nil {
+		ec := cli.NewExitError(color.RedString("[!] Error: %s", err.Error()), 1)
+		return ec
+	}
+
+	if err := b.Patch(); err != nil {
+		ec := cli.NewExitError(color.RedString("[!] Error identifying application: %s", err.Error()), 1)
+		return ec
+	}
+
+	return nil
+}
+
 func New() *Cmd {
 	app := cli.NewApp()
 	app.Name = "divd-2021-00038--log4j-scanner"
@@ -90,6 +146,10 @@ func New() *Cmd {
 		{
 			Name:   "version",
 			Action: VersionAction,
+		},
+		{
+			Name:   "patch",
+			Action: PatchAction,
 		},
 	}
 

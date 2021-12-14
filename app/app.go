@@ -16,6 +16,7 @@ import (
 	"io/fs"
 	"path"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -410,13 +411,22 @@ func NewZipArchiveReader(br io.ReaderAt, size int64) (ArchiveReader, error) {
 
 type Stats struct {
 	files               uint64
+	patched             uint64
 	errors              uint64
 	vulnerableLibraries uint64
 	vulnerableFiles     uint64
 }
 
+func (s *Stats) Patched() uint64 {
+	return atomic.LoadUint64(&s.patched)
+}
+
 func (s *Stats) Files() uint64 {
 	return atomic.LoadUint64(&s.files)
+}
+
+func (s *Stats) IncPatched() {
+	atomic.AddUint64(&s.patched, 1)
 }
 
 func (s *Stats) IncFile() {
@@ -447,6 +457,401 @@ func (s *Stats) IncVulnerableLibrary() {
 	atomic.AddUint64(&s.vulnerableLibraries, 1)
 }
 
+type ArchiveWriter interface {
+	Create(fh interface{}) (io.WriteCloser, error)
+	Close() error
+}
+
+type DirectoryWriter struct {
+}
+
+func (za *DirectoryWriter) Create(fh interface{}) (io.WriteCloser, error) {
+	zfh, ok := fh.(string)
+	if !ok {
+		return nil, fmt.Errorf("Expected path string")
+	}
+
+	fmt.Println("FIX PERMISSONS")
+	// TODO(REMCO): fix permissions
+	return os.OpenFile(zfh, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0770)
+}
+
+func (za *DirectoryWriter) Close() error {
+	return nil
+}
+
+func NewDirectoryWriter(p string) (ArchiveWriter, error) {
+	return &DirectoryWriter{}, nil
+}
+
+type ZIPArchiveWriter struct {
+	*zip.Writer
+}
+
+type ZIPArchiveWriteCloser struct {
+	io.Writer
+}
+
+func (wc *ZIPArchiveWriteCloser) Close() error {
+	return nil
+}
+
+type TARArchiveWriter struct {
+	*tar.Writer
+}
+
+func (za *TARArchiveWriter) Create(fh interface{}) (io.WriteCloser, error) {
+	// should we use openraw
+	tfh, ok := fh.(tar.Header)
+	if !ok {
+		return nil, fmt.Errorf("Expected tar fileheader")
+	}
+
+	if err := za.Writer.WriteHeader(&tfh); err != nil {
+		return nil, err
+	}
+
+	return &TARArchiveWriteCloser{za.Writer}, nil
+}
+
+type TARArchiveWriteCloser struct {
+	io.Writer
+}
+
+func (wc *TARArchiveWriteCloser) Close() error {
+	return nil
+}
+
+func (za *ZIPArchiveWriter) Create(fh interface{}) (io.WriteCloser, error) {
+	// should we use openraw
+
+	zfh, ok := fh.(zip.FileHeader)
+	if !ok {
+		return nil, fmt.Errorf("Expected zip fileheader")
+	}
+
+	w, err := za.Writer.CreateHeader(&zfh)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ZIPArchiveWriteCloser{w}, nil
+}
+
+func NewTARArchiveWriter(br io.Writer) (ArchiveWriter, error) {
+	zw := tar.NewWriter(br)
+	return &TARArchiveWriter{zw}, nil
+}
+
+func NewZipArchiveWriter(br io.Writer) (ArchiveWriter, error) {
+	zw := zip.NewWriter(br)
+	return &ZIPArchiveWriter{zw}, nil
+}
+
+func IsTAR(r io.ReadSeeker) (bool, error) {
+	// get current pos
+	c, err := r.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return false, err
+	}
+
+	block := [512]byte{}
+
+	if _, err := r.Read(block[:]); err != nil {
+		return false, err
+	}
+
+	// restore position
+	_, err = r.Seek(c, io.SeekStart)
+	return bytes.Compare(block[257:257+6], []byte("ustar\x00")) == 0, err
+}
+
+func (b *fuzzer) RecursivePatch(w []string, h []byte, r ArchiveReader, aw ArchiveWriter) (bool, error) {
+	patched := false
+
+	// should check for hashes if vulnerable or not
+	for v := range r.Walk() {
+		if ae, ok := v.(ArchiveError); ok {
+			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not traverse into %s \u001b[0K", strings.Join(w, " -> "), ae.Error()))
+
+			// failed to patch file
+			return false, ae.Err
+		}
+
+		f := v.(ArchiveFile)
+
+		if p, err := func() (bool, error) {
+			size := f.FileInfo().Size()
+
+			rc, err := f.Open()
+			if err != nil {
+				return false, err
+			}
+
+			defer rc.Close()
+
+			// calculate hash
+			shaHash256 := sha256.New()
+
+			if _, err := io.Copy(shaHash256, rc); err != nil {
+				b.stats.IncError()
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not calculate hash \u001b[0K", strings.Join(append(w, f.Name()), " -> ")))
+				return false, err
+			}
+
+			hash := shaHash256.Sum(nil)
+
+			rc.Seek(0, io.SeekStart)
+
+			// this function writes after patching the file back to the archive
+			writeFunc := func(w ArchiveWriter, r io.Reader, size int64) error {
+				switch af := f.(type) {
+				case *ZIPArchiveFile:
+					fh := af.FileHeader
+
+					now := time.Now()
+
+					// somehow the timezone is read incorrectly in golang zip lib, correct
+					_, offset := now.Zone()
+					fh.Modified = fh.Modified.Add(time.Duration(offset*-1) * time.Second)
+
+					w, err := aw.Create(fh)
+					if err != nil {
+						return err
+					}
+
+					if _, err := io.Copy(w, r); err != nil {
+						return err
+					}
+
+					return w.Close()
+				case *DirectoryFile:
+					// upper level we'll create patch files
+					w, err := os.OpenFile(fmt.Sprintf("%s.patch", f.Name()), os.O_CREATE|os.O_WRONLY|os.O_EXCL, f.FileInfo().Mode().Perm())
+					if err != nil {
+						return err
+					}
+
+					if _, err := io.Copy(w, r); err != nil {
+						return err
+					}
+
+					return w.Close()
+				case *TARArchiveFile:
+					th := *af.Header
+
+					// adjust size
+					th.Size = size
+
+					w, err := aw.Create(th)
+					if err != nil {
+						return err
+					}
+
+					if _, err := io.Copy(w, r); err != nil {
+						return err
+					}
+
+					return w.Close()
+				default:
+					panic(fmt.Sprintf("Unsupported type", reflect.TypeOf(f)))
+				}
+			}
+
+			if f.FileInfo().IsDir() {
+				// we don't have to do anything with dirs
+			} else {
+				// check file
+				if 4 > size {
+					return false, writeFunc(aw, rc, f.FileInfo().Size())
+				}
+
+				data := []byte{0, 0, 0, 0}
+				if _, err := rc.Read(data); err != nil {
+					b.stats.IncError()
+					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not read magic from file \u001b[0K", strings.Join(append(w, f.Name()), " -> ")))
+					return false, err
+				}
+
+				rc.Seek(0, io.SeekStart)
+
+				// check for PK signature
+				if bytes.Compare(data[0:4], []byte{0x50, 0x4B, 0x03, 0x04}) == 0 {
+					// zip file
+					r2, err := NewZipArchiveReader(NewUnbufferedReaderAt(rc), size)
+					if err != nil {
+						b.stats.IncError()
+						fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open zip file for reading \u001b[0K", strings.Join(append(w, f.Name()), " -> ")))
+						return false, err
+					}
+
+					// first write to temp fle, then add
+					tf, err := os.CreateTemp("", "patch-")
+					defer os.Remove(tf.Name())
+
+					w2, err := NewZipArchiveWriter(tf)
+					if err != nil {
+						b.stats.IncError()
+						fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open zip file for writing \u001b[0K", strings.Join(append(w, f.Name()), " -> ")))
+						return false, err
+					}
+
+					patched, err := b.RecursivePatch(append(w, f.Name()), hash, r2, w2)
+					if err != nil {
+						return false, err
+					}
+
+					if err := w2.Close(); err != nil {
+						return false, err
+					}
+
+					// seek to start
+					size, err := tf.Seek(0, io.SeekCurrent)
+					if err != nil {
+						return false, err
+					}
+
+					tf.Seek(0, io.SeekStart)
+
+					// we only write the file if it is patched, otherwise we'll just write the original file
+					if patched {
+						if b.debug {
+							fmt.Fprintln(b.writer.Bypass(), color.GreenString("[!][%s] patched %s \u001b[0K", strings.Join(append(w, f.Name()), " -> "), f.Name()))
+						}
+
+						return patched, writeFunc(aw, tf, size)
+					}
+				} else if bytes.Compare(data[0:3], []byte{0x1F, 0x8B, 0x08}) == 0 {
+					// tgz
+					r2, err := NewGzipTARArchiveReader(NewUnbufferedReaderAt(rc), size)
+					if err != nil {
+						b.stats.IncError()
+						fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open tar file %x \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash))
+						return false, err
+					}
+
+					// first write to temp fle, then add
+					tf, err := os.CreateTemp("", "patch-")
+					defer os.Remove(tf.Name())
+
+					gw := gzip.NewWriter(tf)
+
+					w2, err := NewTARArchiveWriter(gw)
+					if err != nil {
+						b.stats.IncError()
+						fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open zip file for writing \u001b[0K", strings.Join(append(w, f.Name()), " -> ")))
+						return false, err
+					}
+
+					patched, err := b.RecursivePatch(append(w, f.Name()), hash, r2, w2)
+					if err != nil {
+						return false, err
+					}
+
+					if err := w2.Close(); err != nil {
+						return false, err
+					}
+
+					if err := gw.Close(); err != nil {
+						return false, err
+					}
+
+					// seek to start
+					size, err := tf.Seek(0, io.SeekCurrent)
+					if err != nil {
+						return false, err
+					}
+
+					tf.Seek(0, io.SeekStart)
+
+					// we only write the file if it is patched, otherwise we'll just write the original file
+					if patched {
+						if b.debug {
+							fmt.Fprintln(b.writer.Bypass(), color.GreenString("[!][%s] patched %s \u001b[0K", strings.Join(append(w, f.Name()), " -> "), f.Name()))
+						}
+						return patched, writeFunc(aw, tf, size)
+					}
+				} else if found, _ := IsTAR(rc); found {
+					// first write to temp fle, then add
+					tf, err := os.CreateTemp("", "patch-")
+					defer os.Remove(tf.Name())
+
+					r2, err := NewTARArchiveReader(NewUnbufferedReaderAt(rc), size)
+					if err != nil {
+						b.stats.IncError()
+						fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open tar file %x \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash))
+						return false, err
+					}
+
+					w2, err := NewTARArchiveWriter(tf)
+					if err != nil {
+						b.stats.IncError()
+						fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open zip file for writing \u001b[0K", strings.Join(append(w, f.Name()), " -> ")))
+						return false, err
+					}
+
+					patched, err := b.RecursivePatch(append(w, f.Name()), hash, r2, w2)
+					if err != nil {
+						return false, err
+					}
+
+					if err := w2.Close(); err != nil {
+						return false, err
+					}
+
+					// seek to start
+					size, err := tf.Seek(0, io.SeekCurrent)
+					if err != nil {
+						return false, err
+					}
+
+					tf.Seek(0, io.SeekStart)
+
+					// we only write the file if it is patched, otherwise we'll just write the original file
+					if patched {
+						if b.debug {
+							fmt.Fprintln(b.writer.Bypass(), color.GreenString("[!][%s] patched %s \u001b[0K", strings.Join(append(w, f.Name()), " -> "), f.Name()))
+						}
+
+						return patched, writeFunc(aw, tf, size)
+					}
+				}
+			}
+
+			rc.Seek(0, io.SeekStart)
+
+			if strings.EqualFold(path.Base(f.Name()), "JndiLookup.class") {
+				// todo(remco): we need to pass hashes, so we can keep log4j2
+				// can we patch / replace log4j with 2.16?
+				version, _ := b.signatures[string(h)]
+				if !b.IsAllowList(h) {
+					b.stats.IncVulnerableFile()
+					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup.class with hash %x (version: %s) \u001b[0K", strings.Join(append(w, f.Name()), " -> "), h, version))
+
+					if _, ok := v.(DirectoryFile); ok {
+						return true, os.Rename(f.Name(), fmt.Sprintf("%s.vulnerable", f.Name()))
+					} else {
+						// we are removing this file from the output
+						return true, nil
+					}
+				}
+			}
+
+			if b.debug {
+				fmt.Fprintln(b.writer.Bypass(), color.GreenString("[!][%s] writing %s \u001b[0K", strings.Join(append(w, f.Name()), " -> "), f.Name()))
+			}
+
+			return false, writeFunc(aw, rc, f.FileInfo().Size())
+		}(); err != nil {
+			return false, err
+		} else {
+			patched = patched || p
+		}
+	}
+
+	return patched, nil
+}
+
 func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 	// should check for hashes if vulnerable or not
 	for v := range r.Walk() {
@@ -462,14 +867,6 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 		}
 
 		f := v.(ArchiveFile)
-
-		if path.Base(f.Name()) == "JndiLookup.class" {
-			version, _ := b.signatures[string(h)]
-			if !b.IsAllowList(h) {
-				b.stats.IncVulnerableFile()
-				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup.class with hash %x (version: %s) \u001b[0K", strings.Join(append(w, f.Name()), " -> "), h, version))
-			}
-		}
 
 		if err := func() error {
 			// ignore files > 1GB
@@ -493,15 +890,15 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 			defer rc.Close()
 
 			// calculate hash
-			h := sha256.New()
+			shaHash := sha256.New()
 
-			if _, err := io.Copy(h, rc); err != nil {
+			if _, err := io.Copy(shaHash, rc); err != nil {
 				b.stats.IncError()
 				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not calculate hash \u001b[0K", strings.Join(append(w, f.Name()), " -> ")))
 				return err
 			}
 
-			hash := h.Sum(nil)
+			hash := shaHash.Sum(nil)
 
 			if version, ok := b.signatures[string(hash)]; !ok {
 			} else if b.IsAllowList(hash) {
@@ -516,7 +913,7 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 			data := []byte{0, 0, 0, 0}
 			if _, err := rc.Read(data); err != nil {
 				b.stats.IncError()
-				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open zip file %x \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash))
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not read magic from file %x \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash))
 				return err
 			}
 
@@ -542,9 +939,8 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 				}
 
 				return b.RecursiveFind(append(w, f.Name()), hash, r2)
-			} else {
+			} else if found, _ := IsTAR(rc); found {
 				// always test if file is a tar
-
 				r2, err := NewTARArchiveReader(NewUnbufferedReaderAt(rc), size)
 				if err != nil {
 					b.stats.IncError()
@@ -553,14 +949,66 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 				}
 
 				return b.RecursiveFind(append(w, f.Name()), hash, r2)
-			}
+			} else {
+				if strings.EqualFold(path.Base(f.Name()), "JndiLookup.class") {
+					version, _ := b.signatures[string(h)]
+					if !b.IsAllowList(h) {
+						b.stats.IncVulnerableFile()
+						// TODO(REMCO) : improve message!
+						fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup.class with hash %x (version: %s) \u001b[0K", strings.Join(append(w, f.Name()), " -> "), h, version))
+					}
+				}
 
-			return nil
+				return nil
+			}
 		}(); err != nil {
 			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][ ] Error while scanning: %s => %s \u001b[0K", strings.Join(w, "->"), err))
 		}
 	}
 
+	return nil
+}
+
+func (b *fuzzer) Patch() error {
+	ch := make(chan interface{})
+	defer close(ch)
+
+	b.writer.Start()
+	defer b.writer.Stop() // flush and stop rendering
+
+	start := time.Now()
+	for _, target := range b.targetPaths {
+		if fi, err := os.Stat(target); err != nil {
+			fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Could not retrieve info %s: %s\u001b[0K\n", target, err))
+			continue
+		} else if fi.IsDir() {
+			fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Politely refusing to patch directories %s, try with a single file.\u001b[0K\n", target))
+			continue
+		}
+
+		dr, err := NewDirectoryReader(target)
+		if err != nil {
+			fmt.Fprintf(b.writer.Bypass(), color.RedString("[✗] Could not create directory reader %s: %s\u001b[0K\n", target, err))
+			continue
+		}
+
+		dw, err := NewDirectoryWriter(target)
+		if err != nil {
+			fmt.Fprintf(b.writer.Bypass(), color.RedString("[✗] Could not create directory writer %s: %s\u001b[0K\n", target, err))
+			continue
+		}
+
+		if patched, err := b.RecursivePatch([]string{}, []byte{}, dr, dw); err != nil {
+			fmt.Fprintf(b.writer.Bypass(), color.RedString("[✗] Could not walk into %s: %s\u001b[0K\n", target, err))
+		} else if patched {
+			fmt.Fprintf(b.writer.Bypass(), color.GreenString("[✓] Successfully patched %s\u001b[0K\n", target))
+			b.stats.IncPatched()
+		}
+	}
+
+	i := b.stats.Patched()
+	sub := time.Now().Sub(start)
+	fmt.Fprintln(b.writer.Bypass(), color.YellowString("[🏎]: Patch finished! %d files patched, %d vulnerable files found, %d vulnerable libraries found, %d errors occured,  in %02.fh%02.fm%02.fs, average rate is: %0.f files/min. \u001b[0K", i, b.stats.VulnerableFiles(), b.stats.VulnerableLibraries(), b.stats.Errors(), sub.Seconds()/3600, sub.Seconds()/60, sub.Seconds(), float64(i)/sub.Minutes()))
 	return nil
 }
 
