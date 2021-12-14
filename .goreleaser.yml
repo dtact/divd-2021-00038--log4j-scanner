@@ -1,18 +1,28 @@
+before:
+  hooks:
+    - go mod tidy
+    - go mod download
 builds:
-    ldflags:
-        - -s -w -X 
-        - -X "build.BuildDate={{.Date}}" 
-        - -X "build.CommitID={{.Commit}}"
-        - -X "build.ShortCommitID={{.ShortCommit}}"
-        - -X "build.GoVersion={{.Env.GOVERSION}}"
+  - <<: &build_defaults
+      ldflags:
+        - -s -w -X
+        - -X "github.com/dutchcoders/divd-2021-00038--log4j-scanner/build.BuildDate={{.Date}}"
+        - -X "github.com/dutchcoders/divd-2021-00038--log4j-scanner/build.CommitID={{.Commit}}"
+        - -X "github.com/dutchcoders/divd-2021-00038--log4j-scanner/build.ShortCommitID={{.ShortCommit}}"
+        - -X "github.com/dutchcoders/divd-2021-00038--log4j-scanner/build.GoVersion={{.Env.GOVERSION}}"
 
-    goos:
-      - linux
-      - freebsd
-      - windows
-
-    goarch:
-      - amd64
-      - arm
-      - arm64
-
+    id: macos
+    goos: [darwin]
+    goarch: [amd64, arm64]
+  - <<: *build_defaults
+    id: linux
+    goos: [linux]
+    goarch: [386, amd64, arm64]
+  - <<: *build_defaults
+    id: windows
+    goos: [windows]
+    goarch: [386, amd64, arm64]
+  - <<: *build_defaults
+    id: generate-usage
+    goos: [linux]
+    goarch: [amd64]
