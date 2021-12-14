@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"path"
 	"path/filepath"
 	"strings"
@@ -145,28 +144,22 @@ var signatures = map[string]string{
 }
 
 type unbufferedReaderAt struct {
-	R io.Reader
+	R io.ReadSeekCloser
+
 	N int64
 }
 
-func NewUnbufferedReaderAt(r io.Reader) io.ReaderAt {
+func NewUnbufferedReaderAt(r io.ReadSeekCloser) io.ReaderAt {
 	return &unbufferedReaderAt{R: r}
 }
 
 func (u *unbufferedReaderAt) ReadAt(p []byte, off int64) (n int, err error) {
-	if off < u.N {
-		return 0, errors.New("invalid offset")
-	}
-	diff := off - u.N
-	written, err := io.CopyN(ioutil.Discard, u.R, diff)
-	u.N += written
-	if err != nil {
+
+	if _, err := u.R.Seek(off, io.SeekStart); err != nil {
 		return 0, err
 	}
 
-	n, err = u.R.Read(p)
-	u.N += int64(n)
-	return
+	return u.R.Read(p)
 }
 
 func (b *fuzzer) IsAllowList(h []byte) bool {
@@ -183,7 +176,7 @@ func (b *fuzzer) IsAllowList(h []byte) bool {
 type ArchiveFile interface {
 	FileInfo() os.FileInfo
 	Name() string
-	Open() (io.ReadCloser, error)
+	Open() (io.ReadSeekCloser, error)
 }
 
 type ArchiveReader interface {
@@ -197,7 +190,7 @@ type TARArchiveReader struct {
 type TARArchiveFile struct {
 	*tar.Header
 
-	r io.Reader
+	r io.ReadSeeker
 }
 
 func (za *TARArchiveFile) Name() string {
@@ -205,16 +198,27 @@ func (za *TARArchiveFile) Name() string {
 }
 
 type TARArchiveFileReader struct {
-	io.ReadCloser
+	io.ReadSeekCloser
 }
 
-func (za *TARArchiveFile) Open() (io.ReadCloser, error) {
-	lr := io.LimitReader(za.r, za.Header.Size)
-	return &TARArchiveFileReader{ioutil.NopCloser(lr)}, nil
+// NopCloser returns a ReadCloser with a no-op Close method wrapping
+// the provided Reader r.
+func NopSeekCloser(r io.ReadSeeker) io.ReadSeekCloser {
+	return nopSeekCloser{r}
+}
+
+type nopSeekCloser struct {
+	io.ReadSeeker
+}
+
+func (nopSeekCloser) Close() error { return nil }
+
+func (za *TARArchiveFile) Open() (io.ReadSeekCloser, error) {
+	return &TARArchiveFileReader{NopSeekCloser(za.r)}, nil
 }
 
 func (za *TARArchiveFileReader) Close() error {
-	io.Copy(io.Discard, za.ReadCloser)
+	io.Copy(io.Discard, za.ReadSeekCloser)
 	return nil
 }
 
@@ -299,7 +303,7 @@ func (za *DirectoryFile) FileInfo() os.FileInfo {
 	return za.fi
 }
 
-func (za *DirectoryFile) Open() (io.ReadCloser, error) {
+func (za *DirectoryFile) Open() (io.ReadSeekCloser, error) {
 	r, err := os.OpenFile(za.p, os.O_RDONLY, 0)
 	return r, err
 }
@@ -355,8 +359,19 @@ func (za *ZIPArchiveFile) Name() string {
 	return za.File.Name
 }
 
-func (za *ZIPArchiveFile) Open() (io.ReadCloser, error) {
-	return za.File.Open()
+func (za *ZIPArchiveFile) Open() (io.ReadSeekCloser, error) {
+	r, err := za.File.Open()
+	if err != nil {
+		return nil, err
+	}
+
+	buff := bytes.NewBuffer([]byte{})
+
+	if _, err := io.Copy(buff, r); err != nil {
+		return nil, err
+	}
+
+	return NopSeekCloser(bytes.NewReader(buff.Bytes())), nil
 }
 
 type ZIPArchiveReader struct {
@@ -449,7 +464,15 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 
 		if err := func() error {
 			// ignore files > 1GB
-			if f.FileInfo().Size() > 1073741824 {
+			size := f.FileInfo().Size()
+			if size > 1073741824 {
+				// skipping large file
+				return nil
+			} else if size == 0 {
+				// skipping empty file
+				return nil
+			} else if size < 4 {
+				// skipping small file
 				return nil
 			}
 
@@ -460,22 +483,16 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 
 			defer rc.Close()
 
-			buff := bytes.NewBuffer([]byte{})
-
+			// calculate hash
 			h := sha256.New()
 
-			size, err := io.Copy(buff, io.TeeReader(rc, h))
-			if err != nil {
+			if _, err := io.Copy(h, rc); err != nil {
+				b.stats.IncError()
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not calculate hash \u001b[0K", strings.Join(append(w, f.Name()), " -> ")))
 				return err
 			}
 
 			hash := h.Sum(nil)
-
-			// we're always making sure to read the complete file (for eg tar)
-			if size == 0 {
-				// skipping empty file
-				return nil
-			}
 
 			if version, ok := b.signatures[string(hash)]; !ok {
 			} else if b.IsAllowList(hash) {
@@ -485,13 +502,20 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found vulnerable log4j with hash %x (version: %s) \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash, version))
 			}
 
-			data := buff.Bytes()
+			rc.Seek(0, io.SeekStart)
 
-			br := bytes.NewReader(data)
+			data := []byte{0, 0, 0, 0}
+			if _, err := rc.Read(data); err != nil {
+				b.stats.IncError()
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open zip file %x \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash))
+				return err
+			}
+
+			rc.Seek(0, io.SeekStart)
 
 			// check for PK signature
 			if bytes.Compare(data[0:4], []byte{0x50, 0x4B, 0x03, 0x04}) == 0 {
-				r2, err := NewZipArchiveReader(br, size)
+				r2, err := NewZipArchiveReader(NewUnbufferedReaderAt(rc), size)
 				if err != nil {
 					b.stats.IncError()
 					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open zip file %x \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash))
@@ -501,7 +525,7 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 				return b.RecursiveFind(append(w, f.Name()), hash, r2)
 			} else if bytes.Compare(data[0:3], []byte{0x1F, 0x8B, 0x08}) == 0 {
 				// tgz
-				r2, err := NewGzipTARArchiveReader(br, size)
+				r2, err := NewGzipTARArchiveReader(NewUnbufferedReaderAt(rc), size)
 				if err != nil {
 					b.stats.IncError()
 					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open tar file %x \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash))
@@ -512,7 +536,7 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 			} else {
 				// always test if file is a tar
 
-				r2, err := NewTARArchiveReader(br, size)
+				r2, err := NewTARArchiveReader(NewUnbufferedReaderAt(rc), size)
 				if err != nil {
 					b.stats.IncError()
 					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open tar file %x \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash))
