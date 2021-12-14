@@ -10,40 +10,32 @@ Currently the allow list defines non exploitable versions, in this case log4j-co
 
 ### Windows
 ```bash
-divd-2021-00038--log4j-scanner-windows-amd64.exe {target-path}
+divd-2021-00038--log4j-scanner.exe {target-path}
 ```
-### Linux
+### Linux / OSX / FreeBSD
 ```bash
-divd-2021-00038--log4j-scanner-linux-[amd64|arm64] {target-path}
-```
-### OSX
-```bash
-divd-2021-00038--log4j-scanner-darwin-amd64 {target-path}
+divd-2021-00038--log4j-scanner {target-path}
 ```
 
 # Patching
 
 We've added preleminary support for recursively patching files. This is very experimental, be careful with this feature. Currently patching only works with
-the archive (jar / tar ) file. The patch will create a new .patch file that needs to replace the original. Make sure you'll create a backup of the original file before replacing it. After patching you can 
-scan again to make sure you didn't miss any files. Currently plain .class files in folders won't be patched, they can be removed safe manually.
+the archive (jar / tar ) file. The patch will create a new `.patch`` file that needs to replace the original file. This is on purpose a manual process, as it needs to be timed with restarting services. Make sure you'll create a backup of the original file before replacing it. After patching you can scan again to make sure you didn't miss any files. Currently plain .class files in folders won't be patched, as they can be removed safe manually.
 
-Patching will remove the JndiLookup.class file from the inner archives.
+The `.patch` file will be exactly the same as the original file, without `JndiLookup.class`. This should be sufficient to mitigate this issue, while waiting for upgrades. Make sure to make backups and test thoroughly.
+
+Patch will refuse to run on folders, as a precaution. Just point patch to the vulnerable archive.
 
 ## Usage
 
 ### Windows
 ```bash
-divd-2021-00038--log4j-scanner-windows-amd64.exe patch {target-path}
+divd-2021-00038--log4j-scanner.exe patch {target-path}
 ```
-### Linux
+### Linux / OSX / FreeBSD
 ```bash
-divd-2021-00038--log4j-scanner-linux-[amd64|arm64] patch {target-path}
+divd-2021-00038--log4j-scanner patch {target-path}
 ```
-### OSX
-```bash
-divd-2021-00038--log4j-scanner-darwin-amd64 patch {target-path}
-```
-
 
 ## Build from source
 
