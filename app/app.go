@@ -823,7 +823,11 @@ func (b *fuzzer) RecursivePatch(w []string, h []byte, r ArchiveReader, aw Archiv
 			if strings.EqualFold(path.Base(f.Name()), "JndiLookup.class") {
 				// todo(remco): we need to pass hashes, so we can keep log4j2
 				// can we patch / replace log4j with 2.16?
-				version, _ := b.signatures[string(h)]
+				version := "unknown"
+				if v, ok := b.signatures[string(h)]; ok {
+					version = v
+				}
+
 				if !b.IsAllowList(h) {
 					b.stats.IncVulnerableFile()
 					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup.class with hash %x (version: %s) \u001b[0K", strings.Join(append(w, f.Name()), " -> "), h, version))
@@ -956,7 +960,11 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 				return b.RecursiveFind(append(w, f.Name()), hash, r2)
 			} else {
 				if strings.EqualFold(path.Base(f.Name()), "JndiLookup.class") {
-					version, _ := b.signatures[string(h)]
+					version := "unknown"
+					if v, ok := b.signatures[string(h)]; ok {
+						version = v
+					}
+
 					if !b.IsAllowList(h) {
 						b.stats.IncVulnerableFile()
 						// TODO(REMCO) : improve message!
