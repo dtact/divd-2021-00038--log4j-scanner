@@ -45,7 +45,11 @@ var globalFlags = []cli.Flag{
 		Name:  "allow",
 		Usage: "the allow files",
 		Value: cli.NewStringSlice(
-			"5d241620b10e3f1475320bc9552cf7bcfa27eeb9b1b6a891449e76db4b4a02a8"),
+			// https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-core/2.16.0
+			"5d241620b10e3f1475320bc9552cf7bcfa27eeb9b1b6a891449e76db4b4a02a8",
+			// https://www.apache.org/dyn/closer.lua/logging/log4j/2.16.0/apache-log4j-2.16.0-bin.zip
+			"085e0b34e40533015ba6a73e85933472702654e471c32f276e76cffcf7b13869",
+		),
 	},
 	&cli.IntFlag{
 		Name:  "num-threads",
