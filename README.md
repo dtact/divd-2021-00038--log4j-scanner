@@ -2,7 +2,7 @@
 
 This scanner will recursively scan paths including archives for vulnerable log4j versions and `org/apache/logging/log4j/core/lookup/JndiLookup.class` files. 
 
-Currently the allow list defines non exploitable versions, in this case log4j-core 2.15.0.
+Currently the allow list defines non exploitable versions, in this case log4j-core 2.16.0.
 
 # Scanning
 
