@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 )
 
@@ -49,6 +50,28 @@ func Verbose() (func(b *fuzzer) error, error) {
 	}, nil
 }
 
+func ExcludeList(values []string) (func(b *fuzzer) error, error) {
+	globs := make([]string, len(values))
+
+	for i, value := range values {
+		// check for bad syntaxes
+		_, err := path.Match("test", value)
+		if err != nil {
+			return nil, err
+		}
+
+		globs[i] = value
+	}
+
+	return func(b *fuzzer) error {
+
+		b.excludeList = globs
+
+		fmt.Fprintf(os.Stdout, "[ ] Using exclude list: %s\n", strings.Join(b.excludeList, ", "))
+		return nil
+	}, nil
+}
+
 func AllowList(values []string) (func(b *fuzzer) error, error) {
 	bvalues := make([][]byte, len(values))
 
@@ -74,7 +97,7 @@ func Remotes(remote []string) (func(b *fuzzer) error, error) {
 			b.remoteHosts = append(b.remoteHosts, rh)
 		}
 
-		fmt.Fprintf(os.Stdout, "[ ] Using remote hosts: %s\n", strings.Join(remote, ","))
+		fmt.Fprintf(os.Stdout, "[ ] Using remote hosts: %s\n", strings.Join(remote, ", "))
 		return nil
 	}, nil
 }

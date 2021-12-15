@@ -42,6 +42,11 @@ var globalFlags = []cli.Flag{
 		Value: "",
 	},
 	&cli.StringSliceFlag{
+		Name:  "exclude",
+		Usage: "exclude the following file paths (glob)",
+		Value: cli.NewStringSlice(),
+	},
+	&cli.StringSliceFlag{
 		Name:  "allow",
 		Usage: "the allow files",
 		Value: cli.NewStringSlice(
@@ -179,6 +184,14 @@ func New() *Cmd {
 		if targets := c.String("targets"); targets == "" {
 		} else if fn, err := dirbuster.TargetPaths(strings.Split(targets, ",")); err != nil {
 			ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
+			return ec
+		} else {
+			options = append(options, fn)
+		}
+
+		if exclude := c.StringSlice("exclude"); len(exclude) == 0 {
+		} else if fn, err := dirbuster.ExcludeList(exclude); err != nil {
+			ec := cli.NewExitError(color.RedString("[!] Could not set exclude list: %s", err.Error()), 1)
 			return ec
 		} else {
 			options = append(options, fn)

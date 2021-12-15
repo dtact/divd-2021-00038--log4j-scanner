@@ -22,8 +22,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	cli "github.com/urfave/cli/v2"
 	"os"
+
+	cli "github.com/urfave/cli/v2"
 
 	"github.com/fatih/color"
 	"github.com/gosuri/uilive"
@@ -42,6 +43,7 @@ type fuzzer struct {
 
 	remoteHosts []string
 	targetPaths []string
+	excludeList []string
 
 	stats Stats
 }
@@ -298,7 +300,8 @@ func NewTARArchiveReader(br io.ReaderAt, size int64) (ArchiveReader, error) {
 }
 
 type DirectoryReader struct {
-	p string
+	p           string
+	excludeList []string
 }
 
 type DirectoryFile struct {
@@ -340,6 +343,15 @@ func (za *DirectoryReader) Walk() <-chan interface{} {
 				return nil
 			}
 
+			// only exclude real fs files
+			if info.IsDir() && IsExcluded(path, za.excludeList) {
+				return filepath.SkipDir
+			}
+
+			if IsExcluded(path, za.excludeList) {
+				return nil
+			}
+
 			if !info.Mode().IsRegular() {
 				return nil
 			}
@@ -357,8 +369,8 @@ func (za *DirectoryReader) Walk() <-chan interface{} {
 	return ch
 }
 
-func NewDirectoryReader(p string) (ArchiveReader, error) {
-	return &DirectoryReader{p}, nil
+func NewDirectoryReader(p string, excludeList []string) (ArchiveReader, error) {
+	return &DirectoryReader{p, excludeList}, nil
 }
 
 type ZIPArchiveFile struct {
@@ -868,21 +880,37 @@ func (b *fuzzer) RecursivePatch(ctx *cli.Context, w []string, h []byte, r Archiv
 	return patched, nil
 }
 
+func IsExcluded(p string, l []string) bool {
+	for _, g := range l {
+		// we've checked the patterns before
+		if matched, _ := path.Match(g, p); matched {
+			return matched
+		}
+	}
+
+	return false
+}
+
 func (b *fuzzer) RecursiveFind(ctx *cli.Context, w []string, h []byte, r ArchiveReader) error {
 	// should check for hashes if vulnerable or not
 	for v := range r.Walk() {
 		if ae, ok := v.(ArchiveError); ok {
 			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not traverse into %s \u001b[0K", strings.Join(w, " -> "), ae.Error()))
+
 			b.stats.IncError()
 			continue
 		}
 
+		f := v.(ArchiveFile)
+
 		// only counting actual files
 		if _, ok := (r.(*DirectoryReader)); ok {
 			b.stats.IncFile()
-		}
 
-		f := v.(ArchiveFile)
+			if b.verbose {
+				fmt.Fprintln(b.writer.Bypass(), color.WhiteString("[!][%s] scanning %s \u001b[0K", strings.Join(append(w, f.Name()), " -> "), f.Name()))
+			}
+		}
 
 		if err := func() error {
 			if b.debug {
@@ -1017,7 +1045,7 @@ func (b *fuzzer) Patch(ctx *cli.Context) error {
 			continue
 		}
 
-		dr, err := NewDirectoryReader(target)
+		dr, err := NewDirectoryReader(target, b.excludeList)
 		if err != nil {
 			fmt.Fprintf(b.writer.Bypass(), color.RedString("[✗] Could not create directory reader %s: %s\u001b[0K\n", target, err))
 			continue
@@ -1069,7 +1097,7 @@ func (b *fuzzer) Run(ctx *cli.Context) error {
 	}()
 
 	for _, target := range b.targetPaths {
-		dr, err := NewDirectoryReader(target)
+		dr, err := NewDirectoryReader(target, b.excludeList)
 		if err != nil {
 			fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Could not walk into %s: %s\u001b[0K\n", target, err))
 		}
