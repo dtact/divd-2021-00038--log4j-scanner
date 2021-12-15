@@ -13,11 +13,39 @@ Currently the allow list defines non exploitable versions, in this case log4j-co
 
 ### Windows
 ```bash
-divd-2021-00038--log4j-scanner.exe {target-path}
+$ divd-2021-00038--log4j-scanner.exe {target-path}
 ```
 ### Linux / OSX / FreeBSD
 ```bash
-divd-2021-00038--log4j-scanner {target-path}
+$ divd-2021-00038--log4j-scanner {target-path}
+```
+
+### Docker containers
+
+If you want to scan docker containers, you can do the following. Due to the recursive nature of the application, you can scan into all layers of archives. Lets try with the log4j vulnerable docker container: https://github.com/christophetd/log4shell-vulnerable-app.
+
+
+```bash
+$ docker save log4shell > ./log4shell-image.tar.gz
+$ divd-2021-00038--log4j-scanner-darwin-amd64 ./log4shell-image.tar.gz
+```
+
+You can also patch the image:
+
+```bash
+$ docker save log4shell > ./log4shell-image.tar
+$ divd-2021-00038--log4j-scanner-darwin-amd64 ./log4shell-image.tar
+$ divd-2021-00038--log4j-scanner-darwin-amd64 patch ./log4shell-image.tar
+$ cat ./log4shell-image.tar.patch | docker load 
+```
+
+Comparing both tars will give the following differences:
+
+``` 
+Binary files ../2/BOOT-INF/lib/log4j-core-2.14.1.jar and ./BOOT-INF/lib/log4j-core-2.14.1.jar differ
+Binary files ../2/app/spring-boot-application.jar and ./app/spring-boot-application.jar differ
+Binary files ../2/b0d66ac73d47865118cfb9a1244f1508d94ea938da1eb78c2db20bd2e1a6629a/layer.tar and ./b0d66ac73d47865118cfb9a1244f1508d94ea938da1eb78c2db20bd2e1a6629a/layer.tar differ
+Only in ./org/apache/logging/log4j/core/lookup: JndiLookup.class
 ```
 
 # Patching
