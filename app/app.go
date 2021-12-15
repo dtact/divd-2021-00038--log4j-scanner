@@ -474,14 +474,7 @@ type DirectoryWriter struct {
 }
 
 func (za *DirectoryWriter) Create(fh interface{}) (io.WriteCloser, error) {
-	zfh, ok := fh.(string)
-	if !ok {
-		return nil, fmt.Errorf("Expected path string")
-	}
-
-	fmt.Println("FIX PERMISSONS")
-	// TODO(REMCO): fix permissions
-	return os.OpenFile(zfh, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0770)
+	panic("this code isn't being used")
 }
 
 func (za *DirectoryWriter) Close() error {
