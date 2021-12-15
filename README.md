@@ -26,7 +26,7 @@ If you want to scan docker containers, you can do the following. Due to the recu
 
 
 ```bash
-$ docker save log4shell > ./log4shell-image.tar.gz
+$ docker save log4shell | gzip > ./log4shell-image.tar.gz
 $ divd-2021-00038--log4j-scanner-darwin-amd64 ./log4shell-image.tar.gz
 ```
 
