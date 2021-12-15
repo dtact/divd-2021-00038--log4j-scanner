@@ -212,7 +212,7 @@ func New() *Cmd {
 			return ec
 		}
 
-		if err := b.Run(c); err != nil {
+		if err := b.Scan(c); err != nil {
 			ec := cli.NewExitError(color.RedString("[!] Error identifying application: %s", err.Error()), 1)
 			return ec
 		}
