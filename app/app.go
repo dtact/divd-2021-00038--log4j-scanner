@@ -22,6 +22,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	cli "github.com/urfave/cli/v2"
 	"os"
 
 	"github.com/fatih/color"
@@ -567,7 +568,7 @@ func IsTAR(r io.ReadSeeker) (bool, error) {
 	return bytes.Compare(block[257:257+6], []byte("ustar\x00")) == 0, err
 }
 
-func (b *fuzzer) RecursivePatch(w []string, h []byte, r ArchiveReader, aw ArchiveWriter) (bool, error) {
+func (b *fuzzer) RecursivePatch(ctx *cli.Context, w []string, h []byte, r ArchiveReader, aw ArchiveWriter) (bool, error) {
 	patched := false
 
 	// should check for hashes if vulnerable or not
@@ -697,7 +698,7 @@ func (b *fuzzer) RecursivePatch(w []string, h []byte, r ArchiveReader, aw Archiv
 						return false, err
 					}
 
-					patched, err := b.RecursivePatch(append(w, f.Name()), hash, r2, w2)
+					patched, err := b.RecursivePatch(ctx, append(w, f.Name()), hash, r2, w2)
 					if err != nil {
 						return false, err
 					}
@@ -744,7 +745,7 @@ func (b *fuzzer) RecursivePatch(w []string, h []byte, r ArchiveReader, aw Archiv
 						return false, err
 					}
 
-					patched, err := b.RecursivePatch(append(w, f.Name()), hash, r2, w2)
+					patched, err := b.RecursivePatch(ctx, append(w, f.Name()), hash, r2, w2)
 					if err != nil {
 						return false, err
 					}
@@ -791,7 +792,7 @@ func (b *fuzzer) RecursivePatch(w []string, h []byte, r ArchiveReader, aw Archiv
 						return false, err
 					}
 
-					patched, err := b.RecursivePatch(append(w, f.Name()), hash, r2, w2)
+					patched, err := b.RecursivePatch(ctx, append(w, f.Name()), hash, r2, w2)
 					if err != nil {
 						return false, err
 					}
@@ -867,7 +868,7 @@ func (b *fuzzer) RecursivePatch(w []string, h []byte, r ArchiveReader, aw Archiv
 	return patched, nil
 }
 
-func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
+func (b *fuzzer) RecursiveFind(ctx *cli.Context, w []string, h []byte, r ArchiveReader) error {
 	// should check for hashes if vulnerable or not
 	for v := range r.Walk() {
 		if ae, ok := v.(ArchiveError); ok {
@@ -947,7 +948,7 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 					return err
 				}
 
-				return b.RecursiveFind(append(w, f.Name()), hash, r2)
+				return b.RecursiveFind(ctx, append(w, f.Name()), hash, r2)
 			} else if bytes.Compare(data[0:3], []byte{0x1F, 0x8B, 0x08}) == 0 {
 				// tgz
 				r2, err := NewGzipTARArchiveReader(NewUnbufferedReaderAt(rc), size)
@@ -957,7 +958,7 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 					return err
 				}
 
-				return b.RecursiveFind(append(w, f.Name()), hash, r2)
+				return b.RecursiveFind(ctx, append(w, f.Name()), hash, r2)
 			} else if found, _ := IsTAR(rc); found {
 				// always test if file is a tar
 				r2, err := NewTARArchiveReader(NewUnbufferedReaderAt(rc), size)
@@ -967,7 +968,7 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 					return err
 				}
 
-				return b.RecursiveFind(append(w, f.Name()), hash, r2)
+				return b.RecursiveFind(ctx, append(w, f.Name()), hash, r2)
 			} else {
 				parts := strings.Split(path.Base(f.Name()), ".")
 				if !strings.EqualFold(parts[0], "JndiLookup") {
@@ -999,7 +1000,7 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 	return nil
 }
 
-func (b *fuzzer) Patch() error {
+func (b *fuzzer) Patch(ctx *cli.Context) error {
 	ch := make(chan interface{})
 	defer close(ch)
 
@@ -1028,7 +1029,7 @@ func (b *fuzzer) Patch() error {
 			continue
 		}
 
-		if patched, err := b.RecursivePatch([]string{}, []byte{}, dr, dw); err != nil {
+		if patched, err := b.RecursivePatch(ctx, []string{}, []byte{}, dr, dw); err != nil {
 			fmt.Fprintf(b.writer.Bypass(), color.RedString("[✗] Could not walk into %s: %s\u001b[0K\n", target, err))
 		} else if patched {
 			fmt.Fprintf(b.writer.Bypass(), color.GreenString("[✓] Successfully patched %s => %s\u001b[0K\n", target, fmt.Sprintf("%s.patch", target)))
@@ -1042,7 +1043,7 @@ func (b *fuzzer) Patch() error {
 	return nil
 }
 
-func (b *fuzzer) Run() error {
+func (b *fuzzer) Run(ctx *cli.Context) error {
 	ch := make(chan interface{})
 	defer close(ch)
 
@@ -1073,7 +1074,7 @@ func (b *fuzzer) Run() error {
 			fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Could not walk into %s: %s\u001b[0K\n", target, err))
 		}
 
-		if err := b.RecursiveFind([]string{}, []byte{}, dr); err != nil {
+		if err := b.RecursiveFind(ctx, []string{}, []byte{}, dr); err != nil {
 			fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Could not walk into %s: %s\u001b[0K\n", target, err))
 		}
 	}

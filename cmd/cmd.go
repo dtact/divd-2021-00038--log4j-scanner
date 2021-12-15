@@ -131,7 +131,7 @@ func PatchAction(c *cli.Context) error {
 		return ec
 	}
 
-	if err := b.Patch(); err != nil {
+	if err := b.Patch(c); err != nil {
 		ec := cli.NewExitError(color.RedString("[!] Error identifying application: %s", err.Error()), 1)
 		return ec
 	}
@@ -224,7 +224,7 @@ func New() *Cmd {
 			return ec
 		}
 
-		if err := b.Run(); err != nil {
+		if err := b.Run(c); err != nil {
 			ec := cli.NewExitError(color.RedString("[!] Error identifying application: %s", err.Error()), 1)
 			return ec
 		}
