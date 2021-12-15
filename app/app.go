@@ -816,30 +816,35 @@ func (b *fuzzer) RecursivePatch(w []string, h []byte, r ArchiveReader, aw Archiv
 						return patched, writeFunc(aw, tf, size)
 					}
 				}
-			}
 
-			rc.Seek(0, io.SeekStart)
+				parts := strings.Split(path.Base(f.Name()), ".")
+				if !strings.EqualFold(parts[0], "JndiLookup") {
+					// not JndiLookup
+				} else if bytes.Compare(data[0:4], []byte{0xCA, 0xFE, 0xBA, 0xBE}) != 0 /* class file */ {
+					// not a class file
+				} else {
+					// todo(remco): we need to pass hashes, so we can keep log4j2
+					// can we patch / replace log4j with 2.16?
+					version := "unknown"
+					if v, ok := b.signatures[string(h)]; ok {
+						version = v
+					}
 
-			if strings.EqualFold(path.Base(f.Name()), "JndiLookup.class") {
-				// todo(remco): we need to pass hashes, so we can keep log4j2
-				// can we patch / replace log4j with 2.16?
-				version := "unknown"
-				if v, ok := b.signatures[string(h)]; ok {
-					version = v
-				}
+					if !b.IsAllowList(h) {
+						b.stats.IncVulnerableFile()
+						fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup.class with hash %x (version: %s) \u001b[0K", strings.Join(append(w, f.Name()), " -> "), h, version))
 
-				if !b.IsAllowList(h) {
-					b.stats.IncVulnerableFile()
-					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup.class with hash %x (version: %s) \u001b[0K", strings.Join(append(w, f.Name()), " -> "), h, version))
-
-					if _, ok := v.(*DirectoryFile); ok {
-						return true, os.Rename(f.Name(), fmt.Sprintf("%s.vulnerable", f.Name()))
-					} else {
-						// we are removing this file from the output
-						return true, nil
+						if _, ok := v.(*DirectoryFile); ok {
+							return true, os.Rename(f.Name(), fmt.Sprintf("%s.vulnerable", f.Name()))
+						} else {
+							// we are removing this file from the output
+							return true, nil
+						}
 					}
 				}
 			}
+
+			rc.Seek(0, io.SeekStart)
 
 			if b.debug {
 				fmt.Fprintln(b.writer.Bypass(), color.GreenString("[!][%s] writing %s \u001b[0K", strings.Join(append(w, f.Name()), " -> "), f.Name()))
@@ -959,7 +964,14 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 
 				return b.RecursiveFind(append(w, f.Name()), hash, r2)
 			} else {
-				if strings.EqualFold(path.Base(f.Name()), "JndiLookup.class") {
+				parts := strings.Split(path.Base(f.Name()), ".")
+				if !strings.EqualFold(parts[0], "JndiLookup") {
+					// not JndiLookup
+				} else if bytes.Compare(data[0:4], []byte{0xCA, 0xFE, 0xBA, 0xBE}) != 0 /* class file */ {
+					// not a class file
+				} else {
+					// todo(remco): we need to pass hashes, so we can keep log4j2
+					// can we patch / replace log4j with 2.16?
 					version := "unknown"
 					if v, ok := b.signatures[string(h)]; ok {
 						version = v
@@ -1014,7 +1026,7 @@ func (b *fuzzer) Patch() error {
 		if patched, err := b.RecursivePatch([]string{}, []byte{}, dr, dw); err != nil {
 			fmt.Fprintf(b.writer.Bypass(), color.RedString("[✗] Could not walk into %s: %s\u001b[0K\n", target, err))
 		} else if patched {
-			fmt.Fprintf(b.writer.Bypass(), color.GreenString("[✓] Successfully patched %s\u001b[0K\n", target))
+			fmt.Fprintf(b.writer.Bypass(), color.GreenString("[✓] Successfully patched %s => %s\u001b[0K\n", target, fmt.Sprintf("%s.patch", target)))
 			b.stats.IncPatched()
 		}
 	}
