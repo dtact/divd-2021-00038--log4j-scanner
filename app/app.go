@@ -832,7 +832,7 @@ func (b *fuzzer) RecursivePatch(w []string, h []byte, r ArchiveReader, aw Archiv
 
 					if !b.IsAllowList(h) {
 						b.stats.IncVulnerableFile()
-						fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup.class with hash %x (version: %s) \u001b[0K", strings.Join(append(w, f.Name()), " -> "), h, version))
+						fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup class file with hash %x (version: %s) \u001b[0K", strings.Join(append(w, f.Name()), " -> "), h, version))
 
 						if _, ok := v.(*DirectoryFile); ok {
 							return true, os.Rename(f.Name(), fmt.Sprintf("%s.vulnerable", f.Name()))
@@ -980,7 +980,7 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 					if !b.IsAllowList(h) {
 						b.stats.IncVulnerableFile()
 						// TODO(REMCO) : improve message!
-						fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup.class with hash %x (version: %s) \u001b[0K", strings.Join(append(w, f.Name()), " -> "), h, version))
+						fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup class file with hash %x (version: %s) \u001b[0K", strings.Join(append(w, f.Name()), " -> "), h, version))
 					}
 				}
 
