@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
 	dirbuster "github.com/dutchcoders/divd-2021-00038--log4j-scanner/app"
 	build "github.com/dutchcoders/divd-2021-00038--log4j-scanner/build"
@@ -12,34 +11,13 @@ import (
 	cli "github.com/urfave/cli/v2"
 )
 
-var Version = fmt.Sprintf("%s (build on %s)", build.ShortCommitID, build.BuildDate)
-
-var helpTemplate = `NAME:
-{{.Name}} - {{.Usage}}
-
-DESCRIPTION:
-{{.Description}}
-
-USAGE:
-{{.Name}} {{if .Flags}}[flags] {{end}}command{{if .Flags}}{{end}} [arguments...]
-
-COMMANDS:
-{{range .Commands}}{{join .Names ", "}}{{ "\t" }}{{.Usage}}
-{{end}}{{if .Flags}}
-FLAGS:
-{{range .Flags}}{{.}}
-{{end}}{{end}}
-VERSION:
-` + Version +
-	`{{ "\n"}}`
-
 var log = logging.MustGetLogger("dirbuster/cmd")
 
 var globalFlags = []cli.Flag{
-	&cli.StringFlag{
+	&cli.StringSliceFlag{
 		Name:  "targets",
 		Usage: "",
-		Value: "",
+		Value: cli.NewStringSlice(),
 	},
 	&cli.StringSliceFlag{
 		Name:  "exclude",
@@ -48,7 +26,7 @@ var globalFlags = []cli.Flag{
 	},
 	&cli.StringSliceFlag{
 		Name:  "allow",
-		Usage: "the allow files",
+		Usage: "the allowed library (log4j 2.16) hashes ",
 		Value: cli.NewStringSlice(
 			// https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-core/2.16.0
 			"5d241620b10e3f1475320bc9552cf7bcfa27eeb9b1b6a891449e76db4b4a02a8",
@@ -96,8 +74,8 @@ func PatchAction(c *cli.Context) error {
 
 	options := []dirbuster.OptionFn{}
 
-	if targets := c.String("targets"); targets == "" {
-	} else if fn, err := dirbuster.TargetPaths(strings.Split(targets, ",")); err != nil {
+	if targets := c.StringSlice("targets"); len(targets) == 0 {
+	} else if fn, err := dirbuster.TargetPaths(targets); err != nil {
 		ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
 		return ec
 	} else {
@@ -147,10 +125,14 @@ func PatchAction(c *cli.Context) error {
 func New() *Cmd {
 	app := cli.NewApp()
 	app.Name = "divd-2021-00038--log4j-scanner"
-	app.Usage = ""
-	app.Description = ``
+	app.Copyright = "All rights reserved Remco Verhoef [DTACT]"
+	app.Authors = []*cli.Author{
+		{
+			Name:  "Remco Verhoef",
+			Email: "remco.verhoef@dtact.com",
+		}}
+	app.Description = `This application will scan recursively through archives to detect log4j libraries and the JndiLookup class files.`
 	app.Flags = globalFlags
-	app.CustomAppHelpTemplate = helpTemplate
 	app.Commands = []*cli.Command{
 		{
 			Name:   "version",
@@ -162,7 +144,9 @@ func New() *Cmd {
 		},
 	}
 
+	app.Version = fmt.Sprintf("%s (build on %s)", build.ReleaseTag, build.BuildDate)
 	app.Before = func(c *cli.Context) error {
+
 		return nil
 	}
 
@@ -181,8 +165,8 @@ func New() *Cmd {
 			options = append(options, fn)
 		}
 
-		if targets := c.String("targets"); targets == "" {
-		} else if fn, err := dirbuster.TargetPaths(strings.Split(targets, ",")); err != nil {
+		if targets := c.StringSlice("targets"); len(targets) == 0 {
+		} else if fn, err := dirbuster.TargetPaths(targets); err != nil {
 			ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
 			return ec
 		} else {
