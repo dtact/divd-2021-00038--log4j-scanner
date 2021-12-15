@@ -61,11 +61,6 @@ type Cmd struct {
 	*cli.App
 }
 
-func VersionAction(c *cli.Context) error {
-	fmt.Println(color.YellowString(fmt.Sprintf("dirbuster")))
-	return nil
-}
-
 func PatchAction(c *cli.Context) error {
 	fmt.Println(color.YellowString(fmt.Sprintf("Patchin'")))
 	fmt.Println("divd-2021-00038--log4j-scanner by DTACT")
@@ -134,10 +129,6 @@ func New() *Cmd {
 	app.Description = `This application will scan recursively through archives to detect log4j libraries and the JndiLookup class files.`
 	app.Flags = globalFlags
 	app.Commands = []*cli.Command{
-		{
-			Name:   "version",
-			Action: VersionAction,
-		},
 		{
 			Name:   "patch",
 			Action: PatchAction,
