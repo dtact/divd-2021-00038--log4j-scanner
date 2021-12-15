@@ -425,6 +425,7 @@ func NewZipArchiveReader(br io.ReaderAt, size int64) (ArchiveReader, error) {
 
 type Stats struct {
 	files               uint64
+	layers              uint64
 	patched             uint64
 	errors              uint64
 	vulnerableLibraries uint64
@@ -433,6 +434,14 @@ type Stats struct {
 
 func (s *Stats) Patched() uint64 {
 	return atomic.LoadUint64(&s.patched)
+}
+
+func (s *Stats) Layers() uint64 {
+	return atomic.LoadUint64(&s.layers)
+}
+
+func (s *Stats) IncLayer() {
+	atomic.AddUint64(&s.layers, 1)
 }
 
 func (s *Stats) Files() uint64 {

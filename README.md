@@ -22,20 +22,19 @@ $ divd-2021-00038--log4j-scanner {target-path}
 
 ### Docker containers
 
-If you want to scan docker containers, you can do the following. Due to the recursive nature of the application, you can scan into all layers of archives. Lets try with the log4j vulnerable docker container: https://github.com/christophetd/log4shell-vulnerable-app.
+Using the tool you can now also scan containers: 
 
 
 ```bash
-$ docker save log4shell | gzip > ./log4shell-image.tar.gz
-$ divd-2021-00038--log4j-scanner-darwin-amd64 ./log4shell-image.tar.gz
+$ ./divd-2021-00038--log4j-scanner scan-image logstash:7.16.1
 ```
 
 You can also patch the image:
 
 ```bash
 $ docker save log4shell > ./log4shell-image.tar
-$ divd-2021-00038--log4j-scanner-darwin-amd64 ./log4shell-image.tar
-$ divd-2021-00038--log4j-scanner-darwin-amd64 patch ./log4shell-image.tar
+$ ./divd-2021-00038--log4j-scanner ./log4shell-image.tar
+$ ./divd-2021-00038--log4j-scanner patch ./log4shell-image.tar
 $ cat ./log4shell-image.tar.patch | docker load 
 ```
 
@@ -61,7 +60,7 @@ Patch will refuse to run on folders, as a precaution. Just point patch to the vu
 
 ### Windows
 ```bash
-divd-2021-00038--log4j-scanner.exe patch {target-path}
+$ divd-2021-00038--log4j-scanner.exe patch {target-path}
 ```
 ### Linux / OSX / FreeBSD
 ```bash
