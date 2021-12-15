@@ -255,6 +255,14 @@ func (za *TARArchiveReader) Walk() <-chan interface{} {
 				continue
 			}
 
+			size := header.Size
+
+			if size > 1073741824 {
+				// bailing out when file in tar is too large
+				ch <- ArchiveError{p: header.Name, Err: fmt.Errorf("Could not scan file, file too large: %d bytes.", header.Size)}
+				break
+			}
+
 			lr := io.LimitReader(za.Reader, header.Size)
 
 			buff := bytes.NewBuffer([]byte{})
