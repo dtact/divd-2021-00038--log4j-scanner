@@ -883,6 +883,10 @@ func (b *fuzzer) RecursiveFind(w []string, h []byte, r ArchiveReader) error {
 		f := v.(ArchiveFile)
 
 		if err := func() error {
+			if b.debug {
+				fmt.Fprintln(b.writer.Bypass(), color.WhiteString("[!][%s] scanning %s \u001b[0K", strings.Join(append(w, f.Name()), " -> "), f.Name()))
+			}
+
 			// ignore files > 1GB
 			size := f.FileInfo().Size()
 			if size > 1073741824 {
