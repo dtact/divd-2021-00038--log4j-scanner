@@ -34,6 +34,10 @@ var globalFlags = []cli.Flag{
 			"085e0b34e40533015ba6a73e85933472702654e471c32f276e76cffcf7b13869",
 		),
 	},
+	&cli.BoolFlag{
+		Name:  "disable-color",
+		Usage: "disable color output",
+	},
 	&cli.IntFlag{
 		Name:  "num-threads",
 		Usage: "the number of threads to use",
@@ -290,6 +294,8 @@ func New() *Cmd {
 		fmt.Println("divd-2021-00038--log4j-scanner by DTACT")
 		fmt.Println("http://github.com/dtact/divd-2021-00038--log4j-scanner")
 		fmt.Println("--------------------------------------")
+
+		color.NoColor = c.Bool("no-color")
 		return nil
 	}
 

@@ -20,6 +20,7 @@ import (
 
 	"os"
 
+	"github.com/fatih/color"
 	"github.com/gosuri/uilive"
 	_ "github.com/op/go-logging"
 )
@@ -72,6 +73,7 @@ func New(options ...OptionFn) (*fuzzer, error) {
 	}
 
 	b.writer = uilive.New()
+	b.writer.Out = color.Output
 
 	for k, v := range signatures {
 		h, _ := hex.DecodeString(v)
