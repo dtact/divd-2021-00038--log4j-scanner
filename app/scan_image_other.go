@@ -201,7 +201,7 @@ func (b *fuzzer) ScanImage(ctx *cli.Context) error {
 			defer close(work)
 
 			for _, target := range b.targetPaths {
-						fmt.Fprintln(b.writer.Bypass(), color.WhiteString("[!][ ] Pulling image %s \u001b[0K", target))
+				fmt.Fprintln(b.writer.Bypass(), color.WhiteString("[!][ ] Pulling image %s \u001b[0K", target))
 
 				// remote
 				image, err := cli.ImagePull(ctx.Context, target, types.ImagePullOptions{})
@@ -271,6 +271,6 @@ func (b *fuzzer) ScanImage(ctx *cli.Context) error {
 	i := b.stats.Images()
 	sub := time.Now().Sub(start)
 
-	fmt.Fprintln(b.writer.Bypass(), color.YellowString("[🏎]: Scan finished! %d images scanned, %d vulnerable files found, %d vulnerable libraries found, %d errors occured,  in %02.fh%02.fm%02.fs. \u001b[0K", i, b.stats.VulnerableFiles(), b.stats.VulnerableLibraries(), b.stats.Errors(), sub.Seconds()/3600, sub.Seconds()/60, sub.Seconds() ))
+	fmt.Fprintln(b.writer.Bypass(), color.YellowString("[🏎]: Scan finished! %d images scanned, %d vulnerable files found, %d vulnerable libraries found, %d errors occured,  in %02.fh%02.fm%02.fs. \u001b[0K", i, b.stats.VulnerableFiles(), b.stats.VulnerableLibraries(), b.stats.Errors(), sub.Seconds()/3600, sub.Seconds()/60, sub.Seconds()))
 	return nil
 }
