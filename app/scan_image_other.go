@@ -103,15 +103,13 @@ func (b *fuzzer) ScanImage(ctx *cli.Context) error {
 			sub := time.Now().Sub(start)
 
 			select {
-			case v, closed := <-ch:
-				if closed {
+			case v, ok := <-ch:
+				if !ok {
 					return
 				}
 
-				if p, _ := v.(bool); pause {
-					pause = p
-				}
-
+				p, _ := v.(bool)
+				pause = p
 			default:
 			}
 
@@ -298,7 +296,7 @@ func (b *fuzzer) ScanImage(ctx *cli.Context) error {
 
 			size, _ := io.Copy(tf, image)
 
-			fmt.Fprintln(b.writer.Bypass(), color.WhiteString("[!][ ] scanning %s: %s (%d) \u001b[0K", name, tf.Name(), size))
+			fmt.Fprintln(b.writer.Bypass(), color.WhiteString("[!][ ] scanning %s: %s (size=%d) \u001b[0K", name, tf.Name(), size))
 
 			tf.Seek(0, io.SeekStart)
 
