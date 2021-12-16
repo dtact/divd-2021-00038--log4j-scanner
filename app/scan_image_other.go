@@ -6,6 +6,7 @@ import (
 
 	// "github.com/dutchcoders/dirbuster/vendor.bak/gopkg.in/src-d/go-git.v4/utils/ioutil"
 
+	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
@@ -96,12 +97,21 @@ func (b *fuzzer) ScanImage(ctx *cli.Context) error {
 
 	start := time.Now()
 	go func() {
+		pause := false
+
 		for {
 			sub := time.Now().Sub(start)
 
 			select {
-			case <-ch:
-				return
+			case v, closed := <-ch:
+				if closed {
+					return
+				}
+
+				if p, _ := v.(bool); pause {
+					pause = p
+				}
+
 			default:
 			}
 
@@ -109,7 +119,10 @@ func (b *fuzzer) ScanImage(ctx *cli.Context) error {
 
 			s := current.Load()
 
-			fmt.Fprintf(b.writer, color.GreenString("[ ] Currently scanning %s, checked %d images in %02.fh%02.fm%02.fs. \u001b[0K\n", s, atomic.LoadUint64(&i), sub.Seconds()/3600, sub.Seconds()/60, sub.Seconds()))
+			if !pause {
+				fmt.Fprintf(b.writer, color.GreenString("[ ] Currently scanning %s, checked %d images in %02.fh%02.fm%02.fs. \u001b[0K\n", s, atomic.LoadUint64(&i), sub.Seconds()/3600, sub.Seconds()/60, sub.Seconds()))
+			}
+
 			time.Sleep(time.Millisecond * 100)
 		}
 	}()
@@ -203,8 +216,11 @@ func (b *fuzzer) ScanImage(ctx *cli.Context) error {
 			for _, target := range b.targetPaths {
 				fmt.Fprintln(b.writer.Bypass(), color.WhiteString("[!][ ] Pulling image %s \u001b[0K", target))
 
-				// remote
-				image, err := cli.ImagePull(ctx.Context, target, types.ImagePullOptions{})
+				// pause status
+				ch <- true
+
+				// pull image
+				status, err := cli.ImageCreate(ctx.Context, target, types.ImageCreateOptions{})
 				if err != nil {
 					work <- ImageError{
 						error: err,
@@ -214,8 +230,44 @@ func (b *fuzzer) ScanImage(ctx *cli.Context) error {
 					continue
 				}
 
+				decoder := json.NewDecoder(status)
+
+				for decoder.More() {
+					m := struct {
+						Status string `json:"status"`
+						Detail struct {
+						} `json:"progressDetail"`
+						Progress string `json:"progress"`
+					}{}
+
+					if err := decoder.Decode(&m); err != nil {
+						work <- ImageError{
+							error: fmt.Errorf("Could not json decode request: %w", err),
+							Name:  target,
+							ID:    target,
+						}
+
+						return
+					}
+
+					fmt.Fprintln(b.writer, color.WhiteString("[!][ ] %s: %s \u001b[0K", m.Status, m.Progress))
+				}
+
+				// resume status
+				ch <- false
+
+				r, err := cli.ImageSave(ctx.Context, []string{target})
+				if err != nil {
+					work <- ImageError{
+						error: err,
+						Name:  target,
+						ID:    target,
+					}
+					continue
+				}
+
 				work <- ImageReader{
-					ReadCloser: image,
+					ReadCloser: r,
 					Name:       target,
 					ID:         target,
 				}
@@ -241,12 +293,13 @@ func (b *fuzzer) ScanImage(ctx *cli.Context) error {
 
 		if err := func() error {
 			// first write to temp fle, then add
-			tf, err := os.CreateTemp("", "patch-")
+			tf, err := os.CreateTemp("", "image-")
 			defer os.Remove(tf.Name())
 
 			size, _ := io.Copy(tf, image)
 
-			// size, _ :=tf.Seek(0, io.SeekC)
+			fmt.Fprintln(b.writer.Bypass(), color.WhiteString("[!][ ] scanning %s: %s (%d) \u001b[0K", name, tf.Name(), size))
+
 			tf.Seek(0, io.SeekStart)
 
 			r2, err := NewTARArchiveReader(tf, size)
@@ -256,7 +309,7 @@ func (b *fuzzer) ScanImage(ctx *cli.Context) error {
 				return err
 			}
 
-			if err := b.RecursiveFind(ctx, []string{}, []byte{}, r2); err != nil {
+			if err := b.RecursiveFind(ctx, []string{fmt.Sprintf("%s (%s)", name, image.ID)}, []byte{}, r2); err != nil {
 				fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Could not scan layer %s\u001b[0K\n", name))
 			}
 
