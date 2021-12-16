@@ -62,12 +62,6 @@ type Cmd struct {
 }
 
 func ScanImageAction(c *cli.Context) error {
-	fmt.Println("divd-2021-00038--log4j-scanner by DTACT")
-	fmt.Println("http://github.com/dtact/divd-2021-00038--log4j-scanner")
-	fmt.Println("--------------------------------------")
-
-	fmt.Println("Scanning docker image")
-
 	options := []dirbuster.OptionFn{}
 
 	if targets := c.StringSlice("targets"); len(targets) == 0 {
@@ -119,11 +113,6 @@ func ScanImageAction(c *cli.Context) error {
 }
 
 func PatchAction(c *cli.Context) error {
-	fmt.Println(color.YellowString(fmt.Sprintf("Patchin'")))
-	fmt.Println("divd-2021-00038--log4j-scanner by DTACT")
-	fmt.Println("http://github.com/dtact/divd-2021-00038--log4j-scanner")
-	fmt.Println("--------------------------------------")
-
 	options := []dirbuster.OptionFn{}
 
 	if targets := c.StringSlice("targets"); len(targets) == 0 {
@@ -175,10 +164,6 @@ func PatchAction(c *cli.Context) error {
 }
 
 func ScanAction(c *cli.Context) error {
-	fmt.Println("divd-2021-00038--log4j-scanner by DTACT")
-	fmt.Println("http://github.com/dtact/divd-2021-00038--log4j-scanner")
-	fmt.Println("--------------------------------------")
-
 	options := []dirbuster.OptionFn{}
 
 	v := c.Int("num-threads")
@@ -286,7 +271,9 @@ func New() *Cmd {
 
 	app.Version = fmt.Sprintf("%s (build on %s)", build.ReleaseTag, build.BuildDate)
 	app.Before = func(c *cli.Context) error {
-
+		fmt.Println("divd-2021-00038--log4j-scanner by DTACT")
+		fmt.Println("http://github.com/dtact/divd-2021-00038--log4j-scanner")
+		fmt.Println("--------------------------------------")
 		return nil
 	}
 
