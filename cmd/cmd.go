@@ -250,7 +250,7 @@ func New() *Cmd {
 	app.Flags = globalFlags
 	app.Commands = []*cli.Command{
 		{
-			Name:   "patch",
+			Name:   "scan",
 			Action: ScanAction,
 		},
 		{
