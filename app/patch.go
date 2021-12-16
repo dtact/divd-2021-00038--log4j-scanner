@@ -322,6 +322,10 @@ func (b *fuzzer) RecursivePatch(ctx *cli.Context, w []string, h []byte, r Archiv
 	return patched, nil
 }
 func (b *fuzzer) Patch(ctx *cli.Context) error {
+	if len(b.targetPaths) == 0 {
+		return fmt.Errorf("No target paths set, nothing to do")
+	}
+
 	ch := make(chan interface{})
 	defer close(ch)
 

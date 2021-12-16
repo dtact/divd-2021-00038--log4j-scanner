@@ -156,6 +156,10 @@ func (b *fuzzer) RecursiveFind(ctx *cli.Context, w []string, h []byte, r Archive
 	return nil
 }
 func (b *fuzzer) Scan(ctx *cli.Context) error {
+	if len(b.targetPaths) == 0 {
+		return fmt.Errorf("No target paths set, nothing to do")
+	}
+
 	ch := make(chan interface{})
 	defer close(ch)
 

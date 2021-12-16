@@ -8,26 +8,91 @@ import (
 
 	"fmt"
 	"io"
+	"strings"
 	"sync/atomic"
 	"time"
 
-	"os"
+	"github.com/gobwas/glob"
 
-	kaniko_config "github.com/GoogleContainerTools/kaniko/pkg/config"
-	"github.com/GoogleContainerTools/kaniko/pkg/image/remote"
+	"os"
 
 	cli "github.com/urfave/cli/v2"
 
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/client"
 	"github.com/fatih/color"
 	_ "github.com/op/go-logging"
 )
 
+// nocmp is an uncomparable struct. Embed this inside another struct to make
+// it uncomparable.
+//
+//  type Foo struct {
+//    nocmp
+//    // ...
+//  }
+//
+// This DOES NOT:
+//
+//  - Disallow shallow copies of structs
+//  - Disallow comparison of pointers to uncomparable structs
+type nocmp [0]func()
+
+type AtomicString struct {
+	_ nocmp // disallow non-atomic comparison
+
+	v atomic.Value
+}
+
+var _zeroString string
+
+// NewString creates a new String.
+func NewAtomicString(val string) *AtomicString {
+	x := &AtomicString{}
+	if val != _zeroString {
+		x.Store(val)
+	}
+	return x
+}
+
+// Load atomically loads the wrapped string.
+func (x *AtomicString) Load() string {
+	if v := x.v.Load(); v != nil {
+		return v.(string)
+	}
+	return _zeroString
+}
+
+// Store atomically stores the passed string.
+func (x *AtomicString) Store(val string) {
+	x.v.Store(val)
+}
+
+type ImageError struct {
+	error
+
+	ID   string
+	Name string
+}
+
+type ImageReader struct {
+	io.ReadCloser
+	ID   string
+	Name string
+}
+
 func (b *fuzzer) ScanImage(ctx *cli.Context) error {
+	if len(b.targetPaths) == 0 && !ctx.Bool("local") {
+		return fmt.Errorf("No target paths set, nothing to do")
+	}
+
 	ch := make(chan interface{})
 	defer close(ch)
 
 	b.writer.Start()
 	defer b.writer.Stop() // flush and stop rendering
+
+	current := NewAtomicString("")
 
 	start := time.Now()
 	go func() {
@@ -40,76 +105,172 @@ func (b *fuzzer) ScanImage(ctx *cli.Context) error {
 			default:
 			}
 
-			i := b.stats.Layers()
+			i := b.stats.Images()
 
-			fmt.Fprintf(b.writer, color.GreenString("[ ] Checked %d layers in %02.fh%02.fm%02.fs. \u001b[0K\n", atomic.LoadUint64(&i), sub.Seconds()/3600, sub.Seconds()/60, sub.Seconds()))
+			s := current.Load()
+
+			fmt.Fprintf(b.writer, color.GreenString("[ ] Currently scanning %s, checked %d images in %02.fh%02.fm%02.fs. \u001b[0K\n", s, atomic.LoadUint64(&i), sub.Seconds()/3600, sub.Seconds()/60, sub.Seconds()))
 			time.Sleep(time.Millisecond * 100)
 		}
 	}()
 
-	platform := "linux/amd64"
-
-	for _, target := range b.targetPaths {
-		image, err := remote.RetrieveRemoteImage(target, kaniko_config.RegistryOptions{}, platform)
-		if err != nil {
-			return err
-		}
-
-		layers, err := image.Layers()
-		if err != nil {
-			return err
-		}
-
-		for _, layer := range layers {
-			digest, err := layer.Digest()
-			if err != nil {
-				return err
-			}
-
-			name := digest.Hex
-
-			if b.verbose {
-				fmt.Fprintln(b.writer.Bypass(), color.WhiteString("[!][ ] Scanning layer %s \u001b[0K", name))
-			}
-
-			if err := func() error {
-				// first write to temp fle, then add
-				tf, err := os.CreateTemp("", "patch-")
-				defer os.Remove(tf.Name())
-
-				r, err := layer.Uncompressed()
-				if err != nil {
-					return err
-				}
-
-				size, _ := io.Copy(tf, r)
-
-				// size, _ :=tf.Seek(0, io.SeekC)
-				tf.Seek(0, io.SeekStart)
-
-				r2, err := NewTARArchiveReader(tf, size)
-				if err != nil {
-					b.stats.IncError()
-					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][ ] could not open layer \u001b[0K", name))
-					return err
-				}
-
-				if err := b.RecursiveFind(ctx, []string{}, []byte{}, r2); err != nil {
-					fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Could not scan layer %s\u001b[0K\n", name))
-				}
-
-				return nil
-			}(); err != nil {
-				return err
-			}
-
-			b.stats.IncLayer()
-		}
-
+	cli, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		return err
 	}
 
-	i := b.stats.Layers()
+	work := make(chan interface{})
+
+	if ctx.Bool("local") {
+		images, err := cli.ImageList(ctx.Context, types.ImageListOptions{})
+		if err != nil {
+			return err
+		}
+
+		go func() {
+			defer close(work)
+
+			for _, image := range images {
+				scan := len(b.targetPaths) == 0
+
+				for _, target := range b.targetPaths {
+					g := glob.MustCompile(target, ':', '/')
+
+					if matched := g.Match(image.ID); matched {
+						scan = scan || matched
+					}
+
+					if matched := strings.HasPrefix(image.ID, target); matched {
+						scan = scan || matched
+					}
+
+					parts := strings.Split(image.ID, ":")
+					if 2 > len(parts) {
+					} else if matched := strings.HasPrefix(parts[1], target); matched {
+						scan = scan || matched
+					}
+
+					if len(image.RepoTags) == 0 {
+					} else if matched := g.Match(image.RepoTags[0]); matched {
+						scan = scan || matched
+					}
+
+					if len(image.RepoTags) == 0 {
+					} else if matched := strings.HasPrefix(target, image.RepoTags[0]); matched {
+						scan = scan || matched
+					}
+				}
+
+				name := "(none)"
+				if len(image.RepoTags) > 0 {
+					name = image.RepoTags[0]
+				}
+
+				if !scan {
+					if b.debug {
+						fmt.Fprintln(b.writer.Bypass(), color.WhiteString("[!][ ] Skipping image %s (%s) \u001b[0K", name, image.ID))
+					}
+					continue
+				}
+
+				if b.verbose {
+					fmt.Fprintln(b.writer.Bypass(), color.WhiteString("[!][ ] Saving image %s (%s) \u001b[0K", name, image.ID))
+				}
+
+				r, err := cli.ImageSave(ctx.Context, []string{image.ID})
+				if err != nil {
+					work <- ImageError{
+						error: err,
+						Name:  name,
+						ID:    image.ID,
+					}
+					continue
+				}
+
+				work <- ImageReader{
+					ReadCloser: r,
+					Name:       image.RepoTags[0],
+					ID:         image.ID,
+				}
+
+			}
+		}()
+	} else {
+
+		go func() {
+			defer close(work)
+
+			for _, target := range b.targetPaths {
+						fmt.Fprintln(b.writer.Bypass(), color.WhiteString("[!][ ] Pulling image %s \u001b[0K", target))
+
+				// remote
+				image, err := cli.ImagePull(ctx.Context, target, types.ImagePullOptions{})
+				if err != nil {
+					work <- ImageError{
+						error: err,
+						Name:  target,
+						ID:    "",
+					}
+					continue
+				}
+
+				work <- ImageReader{
+					ReadCloser: image,
+					Name:       target,
+					ID:         target,
+				}
+
+			}
+
+		}()
+	}
+
+	for task := range work {
+		if err, ok := task.(ImageError); ok {
+			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][ ] Could not scan image %s (%s): %s \u001b[0K", err.Name, err.ID, err.Error()))
+			continue
+		}
+
+		image := task.(ImageReader)
+
+		name := image.Name
+
+		current.Store(fmt.Sprintf("%s (%s)", name, image.ID))
+
+		fmt.Fprintln(b.writer.Bypass(), color.WhiteString("[!][ ] Scanning image %s (%s) \u001b[0K", image.Name, image.ID))
+
+		if err := func() error {
+			// first write to temp fle, then add
+			tf, err := os.CreateTemp("", "patch-")
+			defer os.Remove(tf.Name())
+
+			size, _ := io.Copy(tf, image)
+
+			// size, _ :=tf.Seek(0, io.SeekC)
+			tf.Seek(0, io.SeekStart)
+
+			r2, err := NewTARArchiveReader(tf, size)
+			if err != nil {
+				b.stats.IncError()
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][ ] could not open layer \u001b[0K", name))
+				return err
+			}
+
+			if err := b.RecursiveFind(ctx, []string{}, []byte{}, r2); err != nil {
+				fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Could not scan layer %s\u001b[0K\n", name))
+			}
+
+			return nil
+		}(); err != nil {
+			return err
+		}
+
+		b.stats.IncImage()
+	}
+
+	i := b.stats.Images()
 	sub := time.Now().Sub(start)
-	fmt.Fprintln(b.writer.Bypass(), color.YellowString("[🏎]: Scan finished! %d layers scanned, %d vulnerable files found, %d vulnerable libraries found, %d errors occured,  in %02.fh%02.fm%02.fs. \u001b[0K", i, b.stats.VulnerableFiles(), b.stats.VulnerableLibraries(), b.stats.Errors(), sub.Seconds()/3600, sub.Seconds()/60, sub.Seconds() ))
+
+	fmt.Fprintln(b.writer.Bypass(), color.YellowString("[🏎]: Scan finished! %d images scanned, %d vulnerable files found, %d vulnerable libraries found, %d errors occured,  in %02.fh%02.fm%02.fs. \u001b[0K", i, b.stats.VulnerableFiles(), b.stats.VulnerableLibraries(), b.stats.Errors(), sub.Seconds()/3600, sub.Seconds()/60, sub.Seconds() ))
 	return nil
 }

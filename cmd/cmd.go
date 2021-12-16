@@ -174,6 +174,84 @@ func PatchAction(c *cli.Context) error {
 	return nil
 }
 
+func ScanAction(c *cli.Context) error {
+	fmt.Println("divd-2021-00038--log4j-scanner by DTACT")
+	fmt.Println("http://github.com/dtact/divd-2021-00038--log4j-scanner")
+	fmt.Println("--------------------------------------")
+
+	options := []dirbuster.OptionFn{}
+
+	v := c.Int("num-threads")
+	if fn, err := dirbuster.NumThreads(v); err != nil {
+		ec := cli.NewExitError(color.RedString(err.Error()), 1)
+		return ec
+	} else {
+		options = append(options, fn)
+	}
+
+	if targets := c.StringSlice("targets"); len(targets) == 0 {
+	} else if fn, err := dirbuster.TargetPaths(targets); err != nil {
+		ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
+		return ec
+	} else {
+		options = append(options, fn)
+	}
+
+	if exclude := c.StringSlice("exclude"); len(exclude) == 0 {
+	} else if fn, err := dirbuster.ExcludeList(exclude); err != nil {
+		ec := cli.NewExitError(color.RedString("[!] Could not set exclude list: %s", err.Error()), 1)
+		return ec
+	} else {
+		options = append(options, fn)
+	}
+
+	if allowList := c.StringSlice("allow"); len(allowList) == 0 {
+	} else if fn, err := dirbuster.AllowList(allowList); err != nil {
+		ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
+		return ec
+	} else {
+		options = append(options, fn)
+	}
+
+	if !c.Bool("dry") {
+	} else if fn, err := dirbuster.Dry(); err != nil {
+	} else {
+		options = append(options, fn)
+	}
+
+	if !c.Bool("debug") {
+	} else if fn, err := dirbuster.Debug(); err != nil {
+	} else {
+		options = append(options, fn)
+	}
+
+	if !c.Bool("verbose") {
+	} else if fn, err := dirbuster.Verbose(); err != nil {
+	} else {
+		options = append(options, fn)
+	}
+
+	if args := c.Args(); !args.Present() {
+	} else if fn, err := dirbuster.TargetPaths(args.Slice()); err != nil { //|| fn.Host == "" {
+		ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
+		return ec
+	} else {
+		options = append(options, fn)
+	}
+
+	b, err := dirbuster.New(options...)
+	if err != nil {
+		ec := cli.NewExitError(color.RedString("[!] Error: %s", err.Error()), 1)
+		return ec
+	}
+
+	if err := b.Scan(c); err != nil {
+		ec := cli.NewExitError(color.RedString("[!] Error identifying application: %s", err.Error()), 1)
+		return ec
+	}
+
+	return nil
+}
 func New() *Cmd {
 	app := cli.NewApp()
 	app.Name = "divd-2021-00038--log4j-scanner"
@@ -188,11 +266,21 @@ func New() *Cmd {
 	app.Commands = []*cli.Command{
 		{
 			Name:   "patch",
+			Action: ScanAction,
+		},
+		{
+			Name:   "patch",
 			Action: PatchAction,
 		},
 		{
 			Name:   "scan-image",
 			Action: ScanImageAction,
+			Flags: []cli.Flag{
+				&cli.BoolFlag{
+					Name:  "local",
+					Usage: "scan local images",
+				},
+			},
 		},
 	}
 
@@ -202,84 +290,7 @@ func New() *Cmd {
 		return nil
 	}
 
-	app.Action = func(c *cli.Context) error {
-		fmt.Println("divd-2021-00038--log4j-scanner by DTACT")
-		fmt.Println("http://github.com/dtact/divd-2021-00038--log4j-scanner")
-		fmt.Println("--------------------------------------")
-
-		options := []dirbuster.OptionFn{}
-
-		v := c.Int("num-threads")
-		if fn, err := dirbuster.NumThreads(v); err != nil {
-			ec := cli.NewExitError(color.RedString(err.Error()), 1)
-			return ec
-		} else {
-			options = append(options, fn)
-		}
-
-		if targets := c.StringSlice("targets"); len(targets) == 0 {
-		} else if fn, err := dirbuster.TargetPaths(targets); err != nil {
-			ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
-			return ec
-		} else {
-			options = append(options, fn)
-		}
-
-		if exclude := c.StringSlice("exclude"); len(exclude) == 0 {
-		} else if fn, err := dirbuster.ExcludeList(exclude); err != nil {
-			ec := cli.NewExitError(color.RedString("[!] Could not set exclude list: %s", err.Error()), 1)
-			return ec
-		} else {
-			options = append(options, fn)
-		}
-
-		if allowList := c.StringSlice("allow"); len(allowList) == 0 {
-		} else if fn, err := dirbuster.AllowList(allowList); err != nil {
-			ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
-			return ec
-		} else {
-			options = append(options, fn)
-		}
-
-		if !c.Bool("dry") {
-		} else if fn, err := dirbuster.Dry(); err != nil {
-		} else {
-			options = append(options, fn)
-		}
-
-		if !c.Bool("debug") {
-		} else if fn, err := dirbuster.Debug(); err != nil {
-		} else {
-			options = append(options, fn)
-		}
-
-		if !c.Bool("verbose") {
-		} else if fn, err := dirbuster.Verbose(); err != nil {
-		} else {
-			options = append(options, fn)
-		}
-
-		if args := c.Args(); !args.Present() {
-		} else if fn, err := dirbuster.TargetPaths(args.Slice()); err != nil { //|| fn.Host == "" {
-			ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
-			return ec
-		} else {
-			options = append(options, fn)
-		}
-
-		b, err := dirbuster.New(options...)
-		if err != nil {
-			ec := cli.NewExitError(color.RedString("[!] Error: %s", err.Error()), 1)
-			return ec
-		}
-
-		if err := b.Scan(c); err != nil {
-			ec := cli.NewExitError(color.RedString("[!] Error identifying application: %s", err.Error()), 1)
-			return ec
-		}
-
-		return nil
-	}
+	app.Action = ScanAction
 	return &Cmd{
 		App: app,
 	}

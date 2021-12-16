@@ -29,6 +29,19 @@ Using the tool you can now also scan containers:
 $ ./divd-2021-00038--log4j-scanner scan-image logstash:7.16.1
 ```
 
+or local images:
+
+```bash
+$ ./divd-2021-00038--log4j-scanner scan-image --local {sha256|pattern}
+$ ./divd-2021-00038--log4j-scanner scan-image --local log4shell:latest
+$ ./divd-2021-00038--log4j-scanner scan-image --local 4949add9e671
+
+# scan all local images
+$ ./divd-2021-00038--log4j-scanner scan-image --local 
+
+```
+
+
 You can also patch the image:
 
 ```bash
