@@ -90,6 +90,14 @@ func ScanImageAction(c *cli.Context) error {
 		options = append(options, fn)
 	}
 
+	if allowList := c.StringSlice("allow"); len(allowList) == 0 {
+	} else if fn, err := dirbuster.AllowList(allowList); err != nil {
+		ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
+		return ec
+	} else {
+		options = append(options, fn)
+	}
+
 	if args := c.Args(); !args.Present() {
 	} else if fn, err := dirbuster.TargetPaths(args.Slice()); err != nil { //|| fn.Host == "" {
 		ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
@@ -137,6 +145,14 @@ func PatchAction(c *cli.Context) error {
 
 	if !c.Bool("verbose") {
 	} else if fn, err := dirbuster.Verbose(); err != nil {
+	} else {
+		options = append(options, fn)
+	}
+
+	if allowList := c.StringSlice("allow"); len(allowList) == 0 {
+	} else if fn, err := dirbuster.AllowList(allowList); err != nil {
+		ec := cli.NewExitError(color.RedString("[!] Could not set targets: %s", err.Error()), 1)
+		return ec
 	} else {
 		options = append(options, fn)
 	}
