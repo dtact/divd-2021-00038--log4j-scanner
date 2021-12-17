@@ -137,6 +137,7 @@ var signatures = map[string][]string{
 	"2.2":        []string{"c830cde8f929c35dad42cbdb6b28447df69ceffe99937bf420d32424df4d076a"},
 	"2.5":        []string{"4f53e4d52efcccdc446017426c15001bb0fe444c7a6cdc9966f8741cf210d997"},
 	"2.15.0":     []string{"419a8512895971b7b4f4f33e620d361254e5c9552b904b0474b09ddd4a6a220b"},
+	"2.12.2":     []string{"7860bcf8c57fb80a1ccf9f65e245f00dae2ca13db104decfddf6c4b49c6b4c45"},
 	"2.16.0": []string{
 		// https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-core/2.16.0
 		"5d241620b10e3f1475320bc9552cf7bcfa27eeb9b1b6a891449e76db4b4a02a8",
@@ -164,6 +165,7 @@ var fileSignatures = []struct {
 	{"JndiLookup.class", "0f038a1e0aa0aff76d66d1440c88a2b35a3d023ad8b2e3bac8e25a3208499f7e", "2.11.2"},
 	{"JndiLookup.class", "5c104d16ff9831b456e4d7eaf66bcf531f086767782d08eece3fb37e40467279", "2.12.0"},
 	{"JndiLookup.class", "5c104d16ff9831b456e4d7eaf66bcf531f086767782d08eece3fb37e40467279", "2.12.1"},
+	{"JndiLookup.class", "febbc7867784d0f06934fec59df55ee45f6b24c55b17fff71cc4fca80bf22ebb", "2.12.2"},
 	{"JndiLookup.class", "2b32bfc0556ea59307b9b2fde75b6dfbb5bf4f1d008d1402bc9a2357d8a8c61f", "2.13.0"},
 	{"JndiLookup.class", "2b32bfc0556ea59307b9b2fde75b6dfbb5bf4f1d008d1402bc9a2357d8a8c61f", "2.13.1"},
 	{"JndiLookup.class", "2b32bfc0556ea59307b9b2fde75b6dfbb5bf4f1d008d1402bc9a2357d8a8c61f", "2.13.2"},
