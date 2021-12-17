@@ -222,7 +222,7 @@ func (b *fuzzer) Scan(ctx *cli.Context) error {
 
 			i := b.stats.Files()
 
-			fmt.Fprintf(b.writer, color.GreenString("[ ] Checked %d files in %02.fh%02.fm%02.fs, average rate is: %0.f files/min. \u001b[0K\n", atomic.LoadUint64(&i), sub.Seconds()/3600, sub.Seconds()/60, sub.Seconds(), float64(i)/sub.Minutes()))
+			fmt.Fprintf(b.writer, color.GreenString("[ ] Checked %d files in %s, average rate is: %0.f files/min. \u001b[0K\n", atomic.LoadUint64(&i), FormatDuration(sub), float64(i)/sub.Minutes()))
 			time.Sleep(time.Millisecond * 100)
 		}
 	}()
@@ -240,6 +240,6 @@ func (b *fuzzer) Scan(ctx *cli.Context) error {
 
 	i := b.stats.Files()
 	sub := time.Now().Sub(start)
-	fmt.Fprintln(b.writer.Bypass(), color.YellowString("[🏎]: Scan finished! %d files scanned, %d vulnerable files found, %d vulnerable libraries found, %d errors occured,  in %02.fh%02.fm%02.fs, average rate is: %0.f files/min. \u001b[0K", i, b.stats.VulnerableFiles(), b.stats.VulnerableLibraries(), b.stats.Errors(), sub.Seconds()/3600, sub.Seconds()/60, sub.Seconds(), float64(i)/sub.Minutes()))
+	fmt.Fprintln(b.writer.Bypass(), color.YellowString("[🏎]: Scan finished! %d files scanned, %d vulnerable files found, %d vulnerable libraries found, %d errors occured, in %s, average rate is: %0.f files/min. \u001b[0K", i, b.stats.VulnerableFiles(), b.stats.VulnerableLibraries(), b.stats.Errors(), FormatDuration(sub), float64(i)/sub.Minutes()))
 	return nil
 }
