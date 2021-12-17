@@ -19,11 +19,35 @@ import (
 	_ "github.com/op/go-logging"
 )
 
-func (b *fuzzer) RecursiveFind(ctx *cli.Context, w []string, h []byte, r ArchiveReader) error {
+type BreadCrumbs []BreadCrumb
+
+func (bc BreadCrumbs) Add(path string, hash []byte) []BreadCrumb {
+	return append(bc, BreadCrumb{path, hash})
+}
+
+func (bc BreadCrumbs) Last() BreadCrumb {
+	return bc[len(bc)-1]
+}
+
+func (bc BreadCrumbs) Paths() []string {
+	b := make([]string, len(bc))
+	for i := range bc {
+		b[i] = bc[i].Path
+	}
+
+	return b
+}
+
+type BreadCrumb struct {
+	Path string
+	Hash []byte
+}
+
+func (b *fuzzer) RecursiveFind(ctx *cli.Context, bc BreadCrumbs, r ArchiveReader) error {
 	// should check for hashes if vulnerable or not
 	for v := range r.Walk() {
 		if ae, ok := v.(ArchiveError); ok {
-			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not traverse into %s \u001b[0K", strings.Join(w, " -> "), ae.Error()))
+			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not traverse into %s \u001b[0K", strings.Join(bc.Paths(), " -> "), ae.Error()))
 
 			b.stats.IncError()
 			continue
@@ -36,13 +60,13 @@ func (b *fuzzer) RecursiveFind(ctx *cli.Context, w []string, h []byte, r Archive
 			b.stats.IncFile()
 
 			if b.verbose {
-				fmt.Fprintln(b.writer.Bypass(), color.WhiteString("[!][%s] scanning %s \u001b[0K", strings.Join(append(w, f.Name()), " -> "), f.Name()))
+				fmt.Fprintln(b.writer.Bypass(), color.WhiteString("[!][%s] scanning %s \u001b[0K", strings.Join(bc.Paths(), " -> "), f.Name()))
 			}
 		}
 
 		if err := func() error {
 			if b.debug {
-				fmt.Fprintln(b.writer.Bypass(), color.WhiteString("[!][%s] scanning %s \u001b[0K", strings.Join(append(w, f.Name()), " -> "), f.Name()))
+				fmt.Fprintln(b.writer.Bypass(), color.WhiteString("[!][%s] scanning %s \u001b[0K", strings.Join(bc.Paths(), " -> "), f.Name()))
 			}
 
 			// ignore files > 1GB
@@ -70,7 +94,7 @@ func (b *fuzzer) RecursiveFind(ctx *cli.Context, w []string, h []byte, r Archive
 
 			if _, err := io.Copy(shaHash, rc); err != nil {
 				b.stats.IncError()
-				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not calculate hash \u001b[0K", strings.Join(append(w, f.Name()), " -> ")))
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not calculate hash for file %s \u001b[0K", strings.Join(bc.Paths(), " -> "), f.Name()))
 				return err
 			}
 
@@ -81,7 +105,7 @@ func (b *fuzzer) RecursiveFind(ctx *cli.Context, w []string, h []byte, r Archive
 			} else {
 				b.stats.IncVulnerableLibrary()
 
-				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found vulnerable log4j with hash %x (version: %s) \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash, version))
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][ ] found vulnerable log4j library %s with hash %x (version: %s) \u001b[0K", strings.Join(bc.Paths(), " -> "), f.Name(), hash, version))
 			}
 
 			rc.Seek(0, io.SeekStart)
@@ -89,7 +113,7 @@ func (b *fuzzer) RecursiveFind(ctx *cli.Context, w []string, h []byte, r Archive
 			data := []byte{0, 0, 0, 0}
 			if _, err := rc.Read(data); err != nil {
 				b.stats.IncError()
-				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not read magic from file %x \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash))
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not read magic from file %s with hash %x \u001b[0K", strings.Join(bc.Paths(), " -> "), f.Name(), hash))
 				return err
 			}
 
@@ -100,31 +124,31 @@ func (b *fuzzer) RecursiveFind(ctx *cli.Context, w []string, h []byte, r Archive
 				r2, err := NewZipArchiveReader(NewUnbufferedReaderAt(rc), size)
 				if err != nil {
 					b.stats.IncError()
-					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open zip file %x \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash))
+					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open zip file %s with hash %x \u001b[0K", strings.Join(bc.Paths(), " -> "), f.Name(), hash))
 					return err
 				}
 
-				return b.RecursiveFind(ctx, append(w, f.Name()), hash, r2)
+				return b.RecursiveFind(ctx, bc.Add(f.Name(), hash), r2)
 			} else if bytes.Compare(data[0:3], []byte{0x1F, 0x8B, 0x08}) == 0 {
 				// tgz
 				r2, err := NewGzipTARArchiveReader(NewUnbufferedReaderAt(rc), size)
 				if err != nil {
 					b.stats.IncError()
-					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open tar file %x \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash))
+					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open tar file %s with hash %x \u001b[0K", strings.Join(bc.Paths(), " -> "), f.Name(), hash))
 					return err
 				}
 
-				return b.RecursiveFind(ctx, append(w, f.Name()), hash, r2)
+				return b.RecursiveFind(ctx, bc.Add(f.Name(), hash), r2)
 			} else if found, _ := IsTAR(rc); found {
 				// always test if file is a tar
 				r2, err := NewTARArchiveReader(NewUnbufferedReaderAt(rc), size)
 				if err != nil {
 					b.stats.IncError()
-					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open tar file %x \u001b[0K", strings.Join(append(w, f.Name()), " -> "), hash))
+					fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not open tar file %s with hash %x \u001b[0K", strings.Join(bc.Paths(), " -> "), f.Name(), hash))
 					return err
 				}
 
-				return b.RecursiveFind(ctx, append(w, f.Name()), hash, r2)
+				return b.RecursiveFind(ctx, bc.Add(f.Name(), hash), r2)
 			} else {
 				parts := strings.Split(path.Base(f.Name()), ".")
 				if !strings.EqualFold(parts[0], "JndiLookup") {
@@ -135,21 +159,40 @@ func (b *fuzzer) RecursiveFind(ctx *cli.Context, w []string, h []byte, r Archive
 					// todo(remco): we need to pass hashes, so we can keep log4j2
 					// can we patch / replace log4j with 2.16?
 					version := "unknown"
-					if v, ok := b.signatures[string(h)]; ok {
-						version = v
+
+					versions := findFileHashes(shaHash.Sum(nil))
+					if len(versions) > 0 {
+						version = strings.Join(versions, ", ")
 					}
 
-					if !b.IsAllowList(h) {
+					l := bc.Last()
+
+					if !b.IsAllowList(l.Hash) {
 						b.stats.IncVulnerableFile()
 						// TODO(REMCO) : improve message!
-						fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] found JndiLookup class file with hash %x (version: %s) \u001b[0K", strings.Join(append(w, f.Name()), " -> "), h, version))
+						fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][ ] found %s with hash %x (identified as version(s): %s)\u001b[0K", f.Name(), hash, version))
+
+						for i := 0; i < len(bc); i++ {
+							builder := strings.Builder{}
+							builder.WriteString(fmt.Sprintf("found in %s ", bc[i].Path))
+
+							if bc[i].Hash != nil {
+								builder.WriteString(fmt.Sprintf("hash=%x ", bc[i].Hash))
+							}
+
+							if v, ok := b.signatures[string(bc[i].Hash)]; ok {
+								builder.WriteString(fmt.Sprintf("version=%s ", v))
+							}
+
+							fmt.Fprintln(b.writer.Bypass(), color.RedString("       %s└%s──> %s \u001b[0K", strings.Repeat(" ", i*6), strings.Repeat("─", 5), builder.String()))
+						}
 					}
 				}
 
 				return nil
 			}
 		}(); err != nil {
-			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][ ] Error while scanning: %s => %s \u001b[0K", strings.Join(w, "->"), err))
+			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][ ] Error while scanning: %s => %s \u001b[0K", strings.Join(bc.Paths(), "->"), err))
 		}
 	}
 
@@ -190,7 +233,7 @@ func (b *fuzzer) Scan(ctx *cli.Context) error {
 			fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Could not walk into %s: %s\u001b[0K\n", target, err))
 		}
 
-		if err := b.RecursiveFind(ctx, []string{}, []byte{}, dr); err != nil {
+		if err := b.RecursiveFind(ctx, BreadCrumbs{}, dr); err != nil {
 			fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Could not walk into %s: %s\u001b[0K\n", target, err))
 		}
 	}

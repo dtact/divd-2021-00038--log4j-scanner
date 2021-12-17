@@ -307,7 +307,7 @@ func (b *fuzzer) ScanImage(ctx *cli.Context) error {
 				return err
 			}
 
-			if err := b.RecursiveFind(ctx, []string{fmt.Sprintf("%s (%s)", name, image.ID)}, []byte{}, r2); err != nil {
+			if err := b.RecursiveFind(ctx, BreadCrumbs{}.Add(fmt.Sprintf("%s (%s)", name, image.ID), []byte{}), r2); err != nil {
 				fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Could not scan layer %s\u001b[0K\n", name))
 			}
 
