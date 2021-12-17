@@ -406,9 +406,19 @@ func (za *DirectoryReader) Walk() <-chan interface{} {
 				return nil
 			}
 
-			// only exclude real fs files
-			if info.IsDir() && IsExcluded(path, za.excludeList) {
-				return filepath.SkipDir
+			if info.IsDir() {
+				if abs, _ := filepath.Abs(path); abs == "/proc" {
+					return filepath.SkipDir
+				} else if abs, _ := filepath.Abs(path); abs == "/dev" {
+					return filepath.SkipDir
+				} else if abs, _ := filepath.Abs(path); abs == "/net" {
+					return filepath.SkipDir
+				} else if abs, _ := filepath.Abs(path); abs == "/sys" {
+					return filepath.SkipDir
+				} else if IsExcluded(path, za.excludeList) {
+					// only exclude real fs files
+					return filepath.SkipDir
+				}
 			}
 
 			if IsExcluded(path, za.excludeList) {
