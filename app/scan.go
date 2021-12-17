@@ -21,7 +21,7 @@ import (
 
 type BreadCrumbs []BreadCrumb
 
-func (bc BreadCrumbs) Add(path string, hash []byte) []BreadCrumb {
+func (bc BreadCrumbs) Add(path string, hash []byte) BreadCrumbs {
 	return append(bc, BreadCrumb{path, hash})
 }
 
@@ -105,7 +105,22 @@ func (b *fuzzer) RecursiveFind(ctx *cli.Context, bc BreadCrumbs, r ArchiveReader
 			} else {
 				b.stats.IncVulnerableLibrary()
 
-				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][ ] found vulnerable log4j library %s with hash %x (version: %s) \u001b[0K", strings.Join(bc.Paths(), " -> "), f.Name(), hash, version))
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][ ] found vulnerable log4j library %s with hash %x (version: %s) \u001b[0K", f.Name(), hash, version))
+
+				for i := 0; i < len(bc); i++ {
+					builder := strings.Builder{}
+					builder.WriteString(fmt.Sprintf("found in %s ", bc[len(bc)-1-i].Path))
+
+					if bc[i].Hash != nil {
+						builder.WriteString(fmt.Sprintf("hash=%x ", bc[len(bc)-1-i].Hash))
+					}
+
+					if v, ok := b.signatures[string(bc[i].Hash)]; ok {
+						builder.WriteString(fmt.Sprintf("version=%s ", v))
+					}
+
+					fmt.Fprintln(b.writer.Bypass(), color.RedString("       %s└%s──> %s \u001b[0K", strings.Repeat(" ", i*6), strings.Repeat("─", 5), builder.String()))
+				}
 			}
 
 			rc.Seek(0, io.SeekStart)
@@ -113,7 +128,7 @@ func (b *fuzzer) RecursiveFind(ctx *cli.Context, bc BreadCrumbs, r ArchiveReader
 			data := []byte{0, 0, 0, 0}
 			if _, err := rc.Read(data); err != nil {
 				b.stats.IncError()
-				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not read magic from file %s with hash %x \u001b[0K", strings.Join(bc.Paths(), " -> "), f.Name(), hash))
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not read magic from file %s with hash %x \u001b[0K", strings.Join(bc.Add(f.Name(), nil).Paths(), " -> "), hash))
 				return err
 			}
 
@@ -174,10 +189,10 @@ func (b *fuzzer) RecursiveFind(ctx *cli.Context, bc BreadCrumbs, r ArchiveReader
 
 						for i := 0; i < len(bc); i++ {
 							builder := strings.Builder{}
-							builder.WriteString(fmt.Sprintf("found in %s ", bc[i].Path))
+							builder.WriteString(fmt.Sprintf("found in %s ", bc[len(bc)-1-i].Path))
 
 							if bc[i].Hash != nil {
-								builder.WriteString(fmt.Sprintf("hash=%x ", bc[i].Hash))
+								builder.WriteString(fmt.Sprintf("hash=%x ", bc[len(bc)-1-i].Hash))
 							}
 
 							if v, ok := b.signatures[string(bc[i].Hash)]; ok {
