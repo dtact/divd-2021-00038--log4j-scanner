@@ -135,7 +135,7 @@ func (b *fuzzer) RecursiveFind(ctx *cli.Context, bc BreadCrumbs, r ArchiveReader
 					}
 				}
 
-				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][ ] found %s \u001b[0K", builder.String()))
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][ ] %s \u001b[0K", builder.String()))
 
 				for i := 0; i < len(bc); i++ {
 					builder := strings.Builder{}
