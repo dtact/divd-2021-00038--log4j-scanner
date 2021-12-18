@@ -4,6 +4,8 @@ This scanner will recursively scan paths including archives for vulnerable log4j
 
 Currently the allow list defines non exploitable versions, in this case log4j-core 2.17.0 and 2.12.3.
 
+![Scanning multi layered archives](./images/log4j-solr.png)
+
 # Scanning
 
 ## Usage
