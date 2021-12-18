@@ -118,7 +118,7 @@ func (b *fuzzer) ScanImage(ctx *cli.Context) error {
 			s := current.Load()
 
 			if !pause {
-				fmt.Fprintf(b.writer, color.GreenString("[ ] Currently scanning %s, checked %d images in %02.fh%02.fm%02.fs. \u001b[0K\n", s, atomic.LoadUint64(&i), sub.Seconds()/3600, sub.Seconds()/60, sub.Seconds()))
+				fmt.Fprintf(b.writer, color.GreenString("[ ] Currently scanning %s, checked %d images in %s. \u001b[0K\n", s, atomic.LoadUint64(&i), FormatDuration(sub)))
 			}
 
 			time.Sleep(time.Millisecond * 100)
@@ -307,7 +307,7 @@ func (b *fuzzer) ScanImage(ctx *cli.Context) error {
 				return err
 			}
 
-			if err := b.RecursiveFind(ctx, BreadCrumbs{}.Add(fmt.Sprintf("%s (%s)", name, image.ID), []byte{}), r2); err != nil {
+			if err := b.RecursiveFind(ctx, BreadCrumbs{}.Add(fmt.Sprintf("%s (%s)", name, image.ID), nil), r2); err != nil {
 				fmt.Fprintf(b.writer.Bypass(), color.RedString("[ ] Could not scan layer %s\u001b[0K\n", name))
 			}
 

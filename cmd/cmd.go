@@ -26,14 +26,12 @@ var globalFlags = []cli.Flag{
 	},
 	&cli.StringSliceFlag{
 		Name:  "allow",
-		Usage: "the allowed library (log4j 2.16) hashes ",
+		Usage: "the non-vulnerable library (log4j 2.12.3 and 2.17) hashes ",
 		Value: cli.NewStringSlice(
 			// https://www.apache.org/dyn/closer.lua/logging/log4j/2.12.2/apache-log4j-2.12.2-bin.tar.gz
-			"7860bcf8c57fb80a1ccf9f65e245f00dae2ca13db104decfddf6c4b49c6b4c45",
-			// https://mvnrepository.com/artifact/org.apache.logging.log4j/log4j-core/2.16.0
-			"5d241620b10e3f1475320bc9552cf7bcfa27eeb9b1b6a891449e76db4b4a02a8",
-			// https://www.apache.org/dyn/closer.lua/logging/log4j/2.16.0/apache-log4j-2.16.0-bin.zip
-			"085e0b34e40533015ba6a73e85933472702654e471c32f276e76cffcf7b13869",
+			// Placeholder for hash 2.12.3
+			// https://www.apache.org/dyn/closer.lua/logging/log4j/2.17.0/apache-log4j-2.17.0-bin.tar.gz^w
+			"1f7994dcfcc759d39acfeb2ee37e21fda2c6ea6a3de1956e51b901fffd6a3cef",
 		),
 	},
 	&cli.BoolFlag{

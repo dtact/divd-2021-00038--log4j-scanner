@@ -47,7 +47,7 @@ func (b *fuzzer) RecursiveFind(ctx *cli.Context, bc BreadCrumbs, r ArchiveReader
 	// should check for hashes if vulnerable or not
 	for v := range r.Walk() {
 		if ae, ok := v.(ArchiveError); ok {
-			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] could not traverse into %s \u001b[0K", strings.Join(bc.Paths(), " -> "), ae.Error()))
+			fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][%s] Error: %s \u001b[0K", strings.Join(bc.Paths(), " -> "), ae.Error()))
 
 			b.stats.IncError()
 			continue
@@ -100,12 +100,42 @@ func (b *fuzzer) RecursiveFind(ctx *cli.Context, bc BreadCrumbs, r ArchiveReader
 
 			hash := shaHash.Sum(nil)
 
-			if version, ok := b.signatures[string(hash)]; !ok {
+			if _, ok := b.signatures[string(hash)]; !ok {
 			} else if b.IsAllowList(hash) {
 			} else {
 				b.stats.IncVulnerableLibrary()
 
-				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][ ] found vulnerable log4j library %s with hash %x (version: %s) \u001b[0K", f.Name(), hash, version))
+				builder := strings.Builder{}
+				builder.WriteString(fmt.Sprintf("found in %s ", f.Name()))
+
+				if hash != nil {
+					builder.WriteString(fmt.Sprintf("hash=%x ", hash))
+				}
+
+				if v, ok := b.signatures[string(hash)]; ok {
+					builder.WriteString(fmt.Sprintf("version=%s ", v))
+
+					if cves, ok := vulnerabilities[v]; !ok {
+					} else if len(cves) == 0 {
+					} else {
+						s := make([]string, len(cves))
+
+						maxScore := 0.0
+
+						for i := range cves {
+							s[i] = cves[i].ID
+
+							if cves[i].Score > maxScore {
+								maxScore = cves[i].Score
+							}
+						}
+
+						builder.WriteString(fmt.Sprintf("vulnerabilities=%s ", strings.Join(s, ", ")))
+						builder.WriteString(fmt.Sprintf("max-score=%0.1f ", maxScore))
+					}
+				}
+
+				fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][ ] found %s \u001b[0K", builder.String()))
 
 				for i := 0; i < len(bc); i++ {
 					builder := strings.Builder{}
@@ -117,6 +147,25 @@ func (b *fuzzer) RecursiveFind(ctx *cli.Context, bc BreadCrumbs, r ArchiveReader
 
 					if v, ok := b.signatures[string(bc[i].Hash)]; ok {
 						builder.WriteString(fmt.Sprintf("version=%s ", v))
+
+						if cves, ok := vulnerabilities[v]; !ok {
+						} else if len(cves) == 0 {
+						} else {
+							s := make([]string, len(cves))
+
+							maxScore := 0.0
+
+							for i := range cves {
+								s[i] = cves[i].ID
+
+								if cves[i].Score > maxScore {
+									maxScore = cves[i].Score
+								}
+							}
+
+							builder.WriteString(fmt.Sprintf("vulnerabilities=%s ", strings.Join(s, ", ")))
+							builder.WriteString(fmt.Sprintf("max-score=%0.1f ", maxScore))
+						}
 					}
 
 					fmt.Fprintln(b.writer.Bypass(), color.RedString("       %s└%s──> %s \u001b[0K", strings.Repeat(" ", i*6), strings.Repeat("─", 5), builder.String()))
@@ -184,7 +233,6 @@ func (b *fuzzer) RecursiveFind(ctx *cli.Context, bc BreadCrumbs, r ArchiveReader
 
 					if !b.IsAllowList(l.Hash) {
 						b.stats.IncVulnerableFile()
-						// TODO(REMCO) : improve message!
 						fmt.Fprintln(b.writer.Bypass(), color.RedString("[!][ ] found %s with hash %x (identified as version(s): %s)\u001b[0K", f.Name(), hash, version))
 
 						for i := 0; i < len(bc); i++ {
@@ -197,6 +245,25 @@ func (b *fuzzer) RecursiveFind(ctx *cli.Context, bc BreadCrumbs, r ArchiveReader
 
 							if v, ok := b.signatures[string(bc[i].Hash)]; ok {
 								builder.WriteString(fmt.Sprintf("version=%s ", v))
+
+								if cves, ok := vulnerabilities[v]; !ok {
+								} else if len(cves) == 0 {
+								} else {
+									s := make([]string, len(cves))
+
+									maxScore := 0.0
+
+									for i := range cves {
+										s[i] = cves[i].ID
+
+										if cves[i].Score > maxScore {
+											maxScore = cves[i].Score
+										}
+									}
+
+									builder.WriteString(fmt.Sprintf("vulnerabilities=%s ", strings.Join(s, ", ")))
+									builder.WriteString(fmt.Sprintf("max-score=%0.1f ", maxScore))
+								}
 							}
 
 							fmt.Fprintln(b.writer.Bypass(), color.RedString("       %s└%s──> %s \u001b[0K", strings.Repeat(" ", i*6), strings.Repeat("─", 5), builder.String()))

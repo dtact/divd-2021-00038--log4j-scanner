@@ -144,6 +144,267 @@ var signatures = map[string][]string{
 		// https://www.apache.org/dyn/closer.lua/logging/log4j/2.16.0/apache-log4j-2.16.0-bin.zip
 		"085e0b34e40533015ba6a73e85933472702654e471c32f276e76cffcf7b13869",
 	},
+	"2.17.0": []string{
+		"1f7994dcfcc759d39acfeb2ee37e21fda2c6ea6a3de1956e51b901fffd6a3cef",
+	},
+}
+
+type CVE struct {
+	ID          string
+	Description string
+	Reference   []string
+	Score       float64
+}
+
+var CVE_2021_44228 = CVE{
+	ID:          "CVE-2021-44228",
+	Description: `Apache Log4j2 2.0-beta9 through 2.12.1 and 2.13.0 through 2.15.0 JNDI features used in configuration, log messages, and parameters do not protect against attacker controlled LDAP and other JNDI related endpoints. An attacker who can control log messages or log message parameters can execute arbitrary code loaded from LDAP servers when message lookup substitution is enabled. From log4j 2.15.0, this behavior has been disabled by default. From version 2.16.0, this functionality has been completely removed. Note that this vulnerability is specific to log4j-core and does not affect log4net, log4cxx, or other Apache Logging Services projects. `,
+	Reference: []string{
+		"https://logging.apache.org/log4j/2.x/security.html",
+		"https://www.cve.org/CVERecord?id=CVE-2021-4428",
+	},
+	Score: 9.3,
+}
+
+var CVE_2021_45046 = CVE{
+	ID:          "CVE-2021-45046",
+	Description: `It was found that the fix to address CVE-2021-44228 in Apache Log4j 2.15.0 was incomplete in certain non-default configurations. This could allows attackers with control over Thread Context Map (MDC) input data when the logging configuration uses a non-default Pattern Layout with either a Context Lookup (for example, $${ctx:loginId}) or a Thread Context Map pattern (%X, %mdc, or %MDC) to craft malicious input data using a JNDI Lookup pattern resulting in a denial of service (DOS) attack. Log4j 2.15.0 makes a best-effort attempt to restrict JNDI LDAP lookups to localhost by default. Log4j 2.16.0 fixes this issue by removing support for message lookup patterns and disabling JNDI functionality by default. `,
+	Reference: []string{
+		"https://logging.apache.org/log4j/2.x/security.html",
+		"https://www.cve.org/CVERecord?id=CVE-2021-45046",
+	},
+	Score: 2.6,
+}
+
+var CVE_2021_45105 = CVE{
+	ID:          "CVE-2021-45105",
+	Description: `Apache Log4j2 versions 2.0-alpha1 through 2.16.0 (excluding 2.12.3) did not protect from uncontrolled recursion from self-referential lookups. This allows an attacker with control over Thread Context Map data to cause a denial of service when a crafted string is interpreted. This issue was fixed in Log4j 2.17.0 and 2.12.3.`,
+	Reference: []string{
+		"https://logging.apache.org/log4j/2.x/security.html",
+		"https://www.cve.org/CVERecord?id=CVE-2021-45105",
+	},
+	// TODO: NO SCORE ASSIGNED YET
+	Score: 6.0,
+}
+
+var vulnerabilities = map[string][]CVE{
+	"2.0-alpha1": []CVE{
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.0-alpha2": []CVE{
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.0-beta2": []CVE{
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.0-beta3": []CVE{
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.0-beta4": []CVE{
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.0-beta5": []CVE{
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.0-beta1": []CVE{
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.0-beta6": []CVE{
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.0-beta7": []CVE{
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.0-beta8": []CVE{
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.0-beta9": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.0-rc1": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.0-rc2": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.0": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.0.1": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.0.2": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.1": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.2": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.3": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.4": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.4.1": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.5": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.6": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.6.1": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.6.2": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.7": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.8": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.8.1": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.8.2": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.9.0": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.9.1": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.10.0": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.11.0": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.11.1": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.11.2": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.12.0": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.12.1": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.12.2": []CVE{
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	// "2.12.3": []CVE{},
+	"2.13.0": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45105,
+	},
+	"2.13.1": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.13.2": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.13.3": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.14.0": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.14.1": []CVE{
+		CVE_2021_44228,
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.15.0": []CVE{
+		CVE_2021_45046,
+		CVE_2021_45105,
+	},
+	"2.16.0": []CVE{
+		CVE_2021_45105,
+	},
+	// "2.17.0": []CVE{},
 }
 
 var fileSignatures = []struct {
@@ -189,6 +450,7 @@ var fileSignatures = []struct {
 	{"JndiLookup.class", "0f038a1e0aa0aff76d66d1440c88a2b35a3d023ad8b2e3bac8e25a3208499f7e", "2.9.0"},
 	{"JndiLookup.class", "0f038a1e0aa0aff76d66d1440c88a2b35a3d023ad8b2e3bac8e25a3208499f7e", "2.9.1"},
 	{"JndiLookup.class", "84057480ba7da6fb6d9ea50c53a00848315833c1f34bf8f4a47f11a14499ae3f", "2.14.1"},
+	{"JndiLookup.class", "ddad241274b834182525eeddc35c3198247507bd2df59645b58b94cd18fada7c", "2.17.0"},
 }
 
 func findFileHashes(hash []byte) []string {
