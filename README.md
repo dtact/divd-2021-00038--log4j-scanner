@@ -6,6 +6,27 @@ Currently the allow list defines non exploitable versions, in this case log4j-co
 
 ![Scanning multi layered archives](./images/log4j-solr.gif)
 
+# Features
+
+* scans recursively through all archives in archives in archives in archives etc
+* scan for known log4j libraries (sha256 hash)
+* scan for JndiLookup.class files
+* fast
+* show related CVE's found by version
+* detects class files with different extensions (eg .ezclass)
+* scans through all layers of local- and remote docker images
+* *binary* versions available for Windows, Linux and MacOS
+* includes *patching*, which will delete (again recursively) the JndiLookup class
+
+
+# References
+
+| CVE | References | 
+|-----|------------|
+| CVE-2021-44228 | https://www.cve.org/CVERecord?id=CVE-2021-44228 |
+| CVE-2021-45046 | https://www.cve.org/CVERecord?id=CVE-2021-45046 |
+| CVE-2021-45105 | https://www.cve.org/CVERecord?id=CVE-2021-45105 |
+
 # Scanning
 
 ## Usage
