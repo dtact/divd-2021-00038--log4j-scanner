@@ -295,7 +295,7 @@ func New() *Cmd {
 		fmt.Println("http://github.com/dtact/divd-2021-00038--log4j-scanner")
 		fmt.Println("--------------------------------------")
 
-		color.NoColor = c.Bool("no-color")
+		color.NoColor = c.Bool("disable-color")
 		return nil
 	}
 
