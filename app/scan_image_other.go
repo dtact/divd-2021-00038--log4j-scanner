@@ -125,7 +125,7 @@ func (b *fuzzer) ScanImage(ctx *cli.Context) error {
 		}
 	}()
 
-	cli, err := client.NewClientWithOpts(client.FromEnv)
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		return err
 	}
