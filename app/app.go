@@ -119,6 +119,7 @@ var signatures = map[string][]string{
 	"2.0-alpha1": []string{"006fc6623fbb961084243cfc327c885f3c57f2eba8ee05fbc4e93e5358778c85"},
 	"2.0-beta1":  []string{"58e9f72081efff9bdaabd82e3b3efe5b1b9f1666cefe28f429ad7176a6d770ae"},
 	"2.12.0":     []string{"8818f82570d3f509cfb27c209b9a8df6f188857b7462951a61a137be09cf3463"},
+	"2.12.3":     []string{"41058a16e1fa17ae6f2d9d4f8ed20b3e39443b7fcb97d3b057a697087ae53907"},
 	"2.0-beta6":  []string{"4bfb0d5022dc499908da4597f3e19f9f64d3cc98ce756a2249c72179d3d75c47"},
 	"2.0-beta8":  []string{"b3fae4f84d4303cdbad4696554b4e8d2381ad3faf6e0c3c8d2ce60a4388caa02"},
 	"2.0-beta9":  []string{"dcde6033b205433d6e9855c93740f798951fa3a3f252035a768d9f356fde806d"},
@@ -131,6 +132,7 @@ var signatures = map[string][]string{
 	"2.8.1":      []string{"815a73e20e90a413662eefe8594414684df3d5723edcd76070e1a5aee864616e"},
 	"2.4":        []string{"535e19bf14d8c76ec00a7e8490287ca2e2597cae2de5b8f1f65eb81ef1c2a4c6"},
 	"2.3":        []string{"6ae3b0cb657e051f97835a6432c2b0f50a651b36b6d4af395bbe9060bb4ef4b2"},
+	"2.3.1":      []string{"d3057c7d413af1bf8f71ef9a2e6aa01896157ea13ed0819e4296b042b6d08fdf"},
 	"2.13.2":     []string{"268dc17d3739992d4d1ca2c27f94630fb203a40d07e9ad5dfae131d4e3fa9764"},
 	"2.6.1":      []string{"28433734bd9e3121e0a0b78238d5131837b9dbe26f1a930bc872bad44e68e44e"},
 	"2.11.1":     []string{"a20c34cdac4978b76efcc9d0db66e95600bd807c6a0bd3f5793bcb45d07162ec"},
@@ -146,6 +148,9 @@ var signatures = map[string][]string{
 	},
 	"2.17.0": []string{
 		"1f7994dcfcc759d39acfeb2ee37e21fda2c6ea6a3de1956e51b901fffd6a3cef",
+	},
+	"2.17.1": []string{
+		"7e9ee383f6c730557c133bb7a840b7a4225c14e786d543aeae079b3173b58017",
 	},
 }
 
@@ -189,6 +194,17 @@ var CVE_2021_45105 = CVE{
 	Score: 7.5,
 }
 
+var CVE_2021_44832 = CVE{
+	ID:          "CVE-2021-44832",
+	Description: `Apache Log4j2 versions 2.0-beta7 through 2.17.0 (excluding security fix releases 2.3.2 and 2.12.4) are vulnerable to a remote code execution (RCE) attack where an attacker with permission to modify the logging configuration file can construct a malicious configuration using a JDBC Appender with a data source referencing a JNDI URI which can execute remote code. This issue is fixed by limiting JNDI data source names to the java protocol in Log4j2 versions 2.17.1, 2.12.4, and 2.3.2.`,
+	Reference: []string{
+		"https://logging.apache.org/log4j/2.x/security.html",
+		"https://www.cve.org/CVERecord?id=CVE-2021-44832",
+		"https://logging.apache.org/log4j/2.x/security.html#CVE-2021-44832",
+	},
+	Score: 6.6,
+}
+
 var vulnerabilities = map[string][]CVE{
 	"2.0-alpha1": []CVE{
 		CVE_2021_45046,
@@ -225,188 +241,228 @@ var vulnerabilities = map[string][]CVE{
 	"2.0-beta7": []CVE{
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.0-beta8": []CVE{
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.0-beta9": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.0-rc1": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.0-rc2": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.0": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.0.1": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.0.2": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.1": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.2": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.3": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.4": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.4.1": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.5": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.6": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.6.1": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.6.2": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.7": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.8": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.8.1": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.8.2": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.9.0": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.9.1": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.10.0": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.11.0": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.11.1": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.11.2": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.12.0": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.12.1": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.12.2": []CVE{
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
-	// "2.12.3": []CVE{},
+	"2.12.3": []CVE{},
 	"2.13.0": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.13.1": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.13.2": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.13.3": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.14.0": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.14.1": []CVE{
 		CVE_2021_44228,
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.15.0": []CVE{
 		CVE_2021_45046,
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
 	"2.16.0": []CVE{
 		CVE_2021_45105,
+		CVE_2021_44832,
 	},
-	// "2.17.0": []CVE{},
+	"2.17.0": []CVE{
+		CVE_2021_44832,
+	},
 }
 
 var fileSignatures = []struct {
@@ -439,6 +495,7 @@ var fileSignatures = []struct {
 	{"JndiLookup.class", "84057480ba7da6fb6d9ea50c53a00848315833c1f34bf8f4a47f11a14499ae3f", "2.16.0"},
 	{"JndiLookup.class", "a768e5383990b512f9d4f97217eda94031c2fa4aea122585f5a475ab99dc7307", "2.2"},
 	{"JndiLookup.class", "a768e5383990b512f9d4f97217eda94031c2fa4aea122585f5a475ab99dc7307", "2.3"},
+	{"JndiLookup.class", "0ad99a95ff637fc966fc4ce5fe1f9e78d3b24b113282f9990b95a6fde3383d9c", "2.3.1"},
 	{"JndiLookup.class", "a534961bbfce93966496f86c9314f46939fd082bb89986b48b7430c3bea903f7", "2.4"},
 	{"JndiLookup.class", "a534961bbfce93966496f86c9314f46939fd082bb89986b48b7430c3bea903f7", "2.4.1"},
 	{"JndiLookup.class", "a534961bbfce93966496f86c9314f46939fd082bb89986b48b7430c3bea903f7", "2.5"},
@@ -453,6 +510,8 @@ var fileSignatures = []struct {
 	{"JndiLookup.class", "0f038a1e0aa0aff76d66d1440c88a2b35a3d023ad8b2e3bac8e25a3208499f7e", "2.9.1"},
 	{"JndiLookup.class", "84057480ba7da6fb6d9ea50c53a00848315833c1f34bf8f4a47f11a14499ae3f", "2.14.1"},
 	{"JndiLookup.class", "ddad241274b834182525eeddc35c3198247507bd2df59645b58b94cd18fada7c", "2.17.0"},
+	{"JndiLookup.class", "edb797a8633f629b7c2187ccafd259a16a0b7b4cce4d42e646f8472358b8962a", "2.12.3"},
+	{"JndiLookup.class", "ddad241274b834182525eeddc35c3198247507bd2df59645b58b94cd18fada7c", "2.17.1"},
 }
 
 func findFileHashes(hash []byte) []string {
