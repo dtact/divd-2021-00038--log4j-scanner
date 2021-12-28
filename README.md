@@ -26,6 +26,7 @@ Currently the allow list defines non exploitable versions, in this case log4j-co
 | CVE-2021-44228 | https://www.cve.org/CVERecord?id=CVE-2021-44228 |
 | CVE-2021-45046 | https://www.cve.org/CVERecord?id=CVE-2021-45046 |
 | CVE-2021-45105 | https://www.cve.org/CVERecord?id=CVE-2021-45105 |
+| CVE-2021-44832 | https://www.cve.org/CVERecord?id=CVE-2021-44832 |
 
 # Scanning
 
